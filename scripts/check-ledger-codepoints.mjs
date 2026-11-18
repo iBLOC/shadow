@@ -49,7 +49,7 @@ import { execFileSync } from 'node:child_process';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { findViolations, findCollisions, extractEntries, findReferenceIssues, occupiedMap, hex4, canonicalSet, setDigest, collisionIdentities, fingerprintIdentities, identityDigest, danglingRefKeys, sameKeyMultiset } from './lib/ledger-codepoints.mjs';
+import { findViolations, findCollisions, extractEntries, findReferenceIssues, occupiedMap, hex4, canonicalSet, setDigest, collisionIdentities, fingerprintIdentities, identityDigest, danglingRefKeys, sameKeyMultiset, findEnumerationIssues } from './lib/ledger-codepoints.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -275,6 +275,13 @@ export function checkLedgers(ledgerTexts, opts = {}) {
     for (const c of v.malformedClaims || []) {
       out.push('❌ [malformed-claim] ' + l.name + ' 第 ' + c.line + ' 行：条目里提到「本条占 U+」却**整条没有一个能解析的占号声明** ⇒ ⇒ 这条条目**没有有效声明**（闸对它什么都判不出来 ⇒ ⇒ 它在骗人）｜ …' + c.snippet + '…');
     }
+  }
+
+  // ⚠️⚠️ **R10（圈码枚举必须指向那本账本里真实存在的条目）** —— 2026-11-17 实测入库。
+  //   本刀自己写坏过三处（三本条目里的枚举值互相矛盾、引用悬空）⇒ ⇒ 而 R2/R5 只查
+  //   **本条自己**的声明行 ⇒ ⇒ 枚举那串谁都不查 ⇒ ⇒ 闸全绿。
+  for (const en of findEnumerationIssues(ledgerTexts)) {
+    out.push('❌ [enum-mismatch] ' + en.ledger + ' 第 ' + en.line + ' 行：圈码枚举说「' + en.name + ' → U+' + en.cp + '」，但**那本账本里没有任何条目占这个码位** ⇒ ⇒ 注解在说假话（号写错了，或那本还没落笔）');
   }
 
   const collisions = findCollisions(ledgerTexts);
@@ -569,6 +576,22 @@ function selfTest() {
     check('真账本 ⇒ 基线集里的既存撞号都被认出来（债档非空）',
       r.debts.length > 0 || r.collisions.length === 0, String(r.debts.length));
   }
+  // ⚠️⚠️ **R10 自检腿（2026-11-17 实测入库）** —— 正控（枚举指向那本里没人占的号）
+  //   ⇒ ⇒ 必须红；负控（**历史叙述**：讲的是被废掉的第一次取号）⇒ ⇒ 零红。
+  const gA = String.fromCodePoint(0x32FF);
+  const gB = String.fromCodePoint(0x3340);
+  const enumBad = ['# L', '', headReal(gA, '32FF', gA), '⑧ **⚠ 圈码：本条占 U+32FF（' + gA + '）** —— 取 **U+32FF**（父仓）／**U+3400**（移动端）。'].join('\n');
+  const eb = checkLedgers([{ name: '父仓', text: enumBad }, { name: '移动端', text: ['# L', '', headReal(gB, '3340', gB)].join('\n') }], { exempt: [] });
+  check('圈码枚举指向**那本里没人占的号** ⇒ 恰好 1 条红（enum-mismatch）',
+    eb.out.length === 1 && eb.out[0].includes('enum-mismatch'), JSON.stringify(eb.out));
+  const enumNarr = ['# L', '', headReal(gA, '32FF', gA), '⑧ **⚠ 圈码：本条占 U+32FF（' + gA + '）** —— 先取 U+3400（父仓）＋ U+3401（移动端）⇒ ⇒ 落笔那一刻兄弟占了 ⇒ ⇒ 改号重落。'].join('\n');
+  const en = checkLedgers([{ name: '父仓', text: enumNarr }, { name: '移动端', text: ['# L', '', headReal(gB, '3340', gB)].join('\n') }], { exempt: [] });
+  check('**历史叙述**（讲的是被废掉的第一次取号）⇒ 零红（R10 不误报）',
+    en.out.length === 0, JSON.stringify(en.out));
+  const enumOk = ['# L', '', headReal(gA, '32FF', gA), '⑧ **⚠ 圈码：本条占 U+32FF（' + gA + '）** —— 取 **U+32FF**（父仓）／**U+3340**（移动端）。'].join('\n');
+  const eo = checkLedgers([{ name: '父仓', text: enumOk }, { name: '移动端', text: ['# L', '', headReal(gB, '3340', gB)].join('\n') }], { exempt: [] });
+  check('圈码枚举**全部指向真实条目** ⇒ 零红', eo.out.length === 0, JSON.stringify(eo.out));
+
   console.log('  判据自检：' + pass + '/' + (pass + fail));
   return fail === 0;
 }
@@ -731,6 +754,30 @@ function drill() {
     refNoFalsePositive = sameKeyMultiset(danglingRefKeys(refFp.out), danglingRefKeys(origRed.out));
     writeFileSync(copy, original);
   }
+  // ⚠️⚠️ **R10 演练腿（真实数据）** —— 往副本里把**别人那本**的枚举值改成一个没人占的号
+  //   ⇒ ⇒ 必须红（尺子咬住）；还原 ⇒ ⇒ 读数与原始逐字相同。
+  const enumLeg = (() => {
+    const oLines2 = original.split(/\r?\n/);
+    let hit = -1;
+    for (let i = 0; i < oLines2.length; i++) {
+      // ⚠️ **必须同一行有两对**（父仓 ＋ 别人那本）—— 否则会撞上「取 U+XXXX（父仓）／U+YYYY（移动端）」
+      //   这种**叙述行**（里面的码位不是十六进制）⇒ ⇒ 腿会被跳过 ⇒ ⇒ 尺子自己失灵。
+      if (/取\s*\*{0,2}U\+[0-9A-Fa-f]{4,6}\*{0,2}\s*[（(]父仓[）)]/.test(oLines2[i])
+          && /U\+[0-9A-Fa-f]{4,6}\*{0,2}\s*[（(]移动端[）)]/.test(oLines2[i])) { hit = i; break; }
+    }
+    if (hit < 0) return { ran: false, ok: true, note: '本仓里没找到「取 U+XXXX（父仓）」形状的枚举 ⇒ 跳过这一腿' };
+    const mm3 = oLines2[hit].match(/(U\+[0-9A-Fa-f]{4,6}\*{0,2}\s*[（(]移动端[）)])/);
+    if (!mm3) return { ran: false, ok: true, note: '那行没有「（移动端）」这一对 ⇒ 跳过这一腿' };
+    oLines2[hit] = oLines2[hit].replace(mm3[0], 'U+FFFF' + mm3[0].slice(mm3[0].indexOf('（')));
+    const sep2 = original.includes('\r\n') ? '\r\n' : '\n';
+    writeFileSync(copy, oLines2.join(sep2));
+    const enumRed = checkAll(readFileSync(copy, 'utf8'));
+    writeFileSync(copy, original);
+    const enumGreen = checkAll(readFileSync(copy, 'utf8'));
+    const hasRed = enumRed.out.some((x) => x.includes('enum-mismatch'));
+    const restored = enumGreen.out.length === origRed.out.length && enumGreen.out.join('\n') === origRed.out.join('\n');
+    return { ran: true, ok: hasRed && restored && enumRed.out.length > origRed.out.length, note: '注入错枚举 ⇒ 红 ' + enumRed.out.length + ' 条（原始 ' + origRed.out.length + ' 条）｜ 还原逐字相同：' + (restored ? '是' : '否') };
+  })();
   rmSync(dir, { recursive: true, force: true });
   const after = sha256(LEDGER_PATH);
   const mergedOk = mergedRed != null && mergedRed.out.length > 0 && mergedRed.v.swallowed.length >= 1;
@@ -744,7 +791,7 @@ function drill() {
     && red.out.some((l) => l.includes('annotation-mismatch'));
   const greenRestores = green.out.length === origRed.out.length
     && green.out.join('\n') === origRed.out.join('\n');
-  const ok = brokeOk && redAddsDamage && greenRestores && mergedOk && fixtureOk && injectRedHasDup && injectWashStillRed && idRedOk && idWashStillRed && refRedOk && refNoFalsePositive && before === after;
+  const ok = brokeOk && redAddsDamage && greenRestores && mergedOk && fixtureOk && injectRedHasDup && injectWashStillRed && idRedOk && idWashStillRed && refRedOk && refNoFalsePositive && enumLeg.ok && before === after;
   console.log('  破坏对象：**条目自己的声明**（' + (targetEntry ? ('第 ' + targetEntry.line + ' 行那条 · U+' + targetEntry.actual) : '没找到有声明的条目') + '）⇒ ⇒ 改到了：' + (brokeOk ? '是' : '否'));
   console.log('  副本破坏 ⇒ 判红：' + red.out.length + ' 条（原始 ' + origRed.out.length + ' 条 ⇒ ⇒ 本次注入**多**红 ' + (red.out.length - origRed.out.length) + ' 条 ⇒ ⇒ 尺子咬住了本次伤害：' + (redAddsDamage ? '是' : '否') + '）');
   console.log('  副本还原 ⇒ 读数与原始**逐字相同**：' + (greenRestores ? '是' : '否') + '（' + green.out.length + ' 条）');
@@ -757,6 +804,7 @@ function drill() {
   console.log('  同一情形 ＋ 往说明清单补一行 ⇒ **仍判红**：' + (idWashStillRed ? '是' : '否'));
   console.log('  注入**悬空引用**（指向不存在的码位）⇒ 判红：' + (refRedOk ? '是' : '否'));
   console.log('  同一注入改成「第 ② 条」⇒ **不许新增悬空引用**（不许误报｜相对原始读数）：' + (refNoFalsePositive ? '是' : '否'));
+  console.log('  R10 演练腿（把「别人那本」的枚举值改成没人占的号）⇒ ' + (enumLeg.ran ? '判红：' + (enumLeg.ok ? '是' : '否') + '（' + enumLeg.note + '）' : '跳过（' + enumLeg.note + '）'));
   console.log('  真文件 SHA256 前后一致：' + (before === after ? '是' : '否') + ' (' + before.slice(0, 16) + '…)');
   return ok;
 }

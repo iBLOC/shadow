@@ -4,6 +4,7 @@ import { Alert, Card, CardContent, CardHeader, CardTitle, Loading } from '@/comp
 import {
   capabilityCandidatesByCapability,
   capabilityOptionsByCapability,
+  isServedCapability,
   mergeCapabilityDefaultsForPush,
   readCapabilityDefaultsSnapshot,
   unusableCapabilityDefaults,
@@ -74,6 +75,9 @@ export function CapabilityDefaultsCard() {
       const info: EngineResolvedInfo = {
         engineResolved: view.engine_resolved ?? [],
         registered: view.registered ?? {},
+        // ⚠️ **端脑说服务哪几档**（2026-11-16）—— 「词表里有」与「端脑
+        // 服务」是两句话 ⇒ ⇒ 视频那一档端脑整条链没有服务路径。
+        served: view.served ?? [],
       };
       setEngineInfo(info);
       // ⚠️ **chat→llm 的别名已撤**（2026-11-13 晚）：端脑**读面**做了词表
@@ -121,6 +125,17 @@ export function CapabilityDefaultsCard() {
     defaults,
     engineInfo,
     capabilityCandidatesByCapability(providers),
+  );
+  // ⚠️ **「用不了」有两种原因**（2026-11-16）—— 分开说，不许混成一句：
+  // ① 端脑**不服务**这一档（词表里有、背后没有调用入口 ⇒ 视频那一档）；
+  // ② 端脑服务这一档、但那个模型 id **还没注册**。
+  // ⇒ ⇒ 混成一句 ⇒ 用户以为「注册一下引擎就好了」⇒ ⇒ 对视频那一档来说
+  // 那是不可能的（端脑整条链没有视频生成端点）。
+  const unserved = unusable.filter(
+    (u) => !isServedCapability(u.capability, engineInfo),
+  );
+  const notRegistered = unusable.filter(
+    (u) => isServedCapability(u.capability, engineInfo),
   );
 
   const apply = useCallback(
@@ -216,11 +231,23 @@ export function CapabilityDefaultsCard() {
         {/* ⚠️ **当前默认值此刻用不了** ⇒ ⇒ 必须说出来 ——
             「存得进去、用不了」若界面不吭声 ⇒ ⇒ 用户以为配好了 ⇒ ⇒
             真到用语音时才发现 503 ⇒ ⇒ 失败长得像成功。 */}
-        {unusable.length > 0 && (
+        {unserved.length > 0 && (
+          <Alert variant="destructive">
+            <p className="text-sm">{t('capabilityDefaults.unservedNow')}</p>
+            <ul className="mt-1 list-disc pl-5 text-sm">
+              {unserved.map((u) => (
+                <li key={u.capability}>
+                  {t(`capabilityDefaults.${u.capability}`, u.capability)} · {u.modelId}
+                </li>
+              ))}
+            </ul>
+          </Alert>
+        )}
+        {notRegistered.length > 0 && (
           <Alert variant="destructive">
             <p className="text-sm">{t('capabilityDefaults.unusableNow')}</p>
             <ul className="mt-1 list-disc pl-5 text-sm">
-              {unusable.map((u) => (
+              {notRegistered.map((u) => (
                 <li key={u.capability}>
                   {t(`capabilityDefaults.${u.capability}`, u.capability)} · {u.modelId}
                 </li>
@@ -261,8 +288,14 @@ export function CapabilityDefaultsCard() {
                   >
                     <option value="">{t('capabilityDefaults.unset')}</option>
                     {list.map((c) => (
-                      <option key={c.id} value={c.id}>
+                      <option key={c.id} value={c.id} disabled={!c.usableNow}>
                         {c.label}
+                        {/* ⚠️ **不可用的候选要自己说出来** —— 只把它标成
+                            disabled，用户只会以为「这个模型没了」⇒ ⇒ 补一句
+                            原因（端脑不服务这一档 ⇒ ⇒ 选了也调不通）。 */}
+                        {!c.usableNow
+                          ? ` — ${t('capabilityDefaults.optionUnserved')}`
+                          : ''}
                       </option>
                     ))}
                     {value && !known && <option value={value}>{value}</option>}
@@ -293,4 +326,6 @@ const CAPABILITY_FALLBACK_LABELS: Record<string, string> = {
   vision: '视觉模型',
   forecast: '预测模型',
   image_gen: '图片生成',
+  // ⚠️ **第 10 档**（2026-11-16）—— 视频生成有自己的桶了。
+  video_gen: '视频生成',
 };

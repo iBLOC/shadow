@@ -8,7 +8,7 @@ import 'package:shadow_mobile/tts_engine.dart';
 /// 判据用的**假 TTS**（不发声，只占住那个位置）。
 class MockTts extends TtsEngine {
   @override
-  Future<TtsSpeakResult> speak(String text, {String lang = 'zh-CN', bool allowFallback = true, String? lobe}) async =>
+  Future<TtsSpeakResult> speak(String text, {String lang = 'zh-CN', bool allowFallback = true, String? lobe, bool reportSkip = true, bool force = false}) async =>
       const TtsSpeakResult.spoke();
 }
 

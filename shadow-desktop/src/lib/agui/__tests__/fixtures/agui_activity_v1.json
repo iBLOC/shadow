@@ -1,0 +1,39 @@
+{
+  "type": "ACTIVITY_SNAPSHOT",
+  "messageId": "a2ui-surface-shadow.tasks",
+  "activityType": "a2ui-surface",
+  "content": [
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "shadow.tasks",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": [
+              "title",
+              "task0"
+            ]
+          },
+          {
+            "id": "title",
+            "component": "Text",
+            "text": "# Tasks (1)"
+          },
+          {
+            "id": "task0",
+            "component": "TaskCard",
+            "catalogId": "https://raw.githubusercontent.com/iBLOC/shadow/main/a2ui/catalogs/v1/catalog.json",
+            "title": "写周报",
+            "description": "本周进展汇总",
+            "status": "in_progress",
+            "priority": "high"
+          }
+        ]
+      }
+    }
+  ],
+  "replace": true
+}

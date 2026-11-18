@@ -21,8 +21,10 @@ import { describe, expect, it } from 'vitest';
 import {
   CATALOG_RESOLVED_TIERS,
   CLOUD_ONLY_UNION_TIERS,
+  TELEENCEPHALON_UNSERVED_TIERS,
   capabilityCandidatesByCapability,
   capabilityOptionsByCapability,
+  isServedCapability,
   unusableCapabilityDefaults,
   type CatalogProviderEntry,
   type CapabilityModelCandidate,
@@ -185,5 +187,79 @@ describe('unusableCapabilityDefaults —— 别把「能用」报成「用不了
     expect(
       unusableCapabilityDefaults({ tts: 'mimo-v2.5-tts' }, info),
     ).toHaveLength(1);
+  });
+});
+
+/**
+ * ⚠️ **第 10 档 `video_gen`**（2026-11-16）—— 「词表里有」与「端脑服务」
+ * 是**两句话**。
+ *
+ * ⚠️ 端脑 → neuron **整条链没有视频生成端点**（官方那套是「创建 ⇒ 轮询
+ * ⇒ 取文件」三步）⇒ ⇒ 这一档在词表里、端脑**不服务** ⇒ ⇒ 客户端必须
+ * 说清「这一档现在调不了」⇒ ⇒ 否则给用户一个必然失败的选项
+ * （**存得进去、用不了**）。
+ */
+describe('第 10 档 video_gen —— 「词表里有」≠「端脑服务」', () => {
+  const videoCatalog: Record<string, CapabilityModelCandidate[]> = {
+    video_gen: [
+      { id: 'MiniMax-H3', label: 'MiniMax · H3', cloud: true },
+      { id: 'MiniMax-Hailuo-2.3', label: 'MiniMax · Hailuo-2.3', cloud: true },
+    ],
+  };
+
+  it('端脑没给 served（老端脑）⇒ 视频那一档判为「不服务」', () => {
+    expect(isServedCapability('video_gen')).toBe(false);
+    // 负控：别的档照旧服务（不许一刀切全灭）。
+    expect(isServedCapability('image_gen')).toBe(true);
+    expect(isServedCapability('llm')).toBe(true);
+    // ⚠️ 兜底档里**只有**视频这一档（改名单要连移动端一起改）。
+    expect([...TELEENCEPHALON_UNSERVED_TIERS]).toEqual(['video_gen']);
+  });
+
+  it('端脑给了 served ⇒ 以端脑为准（将来端脑真加了门面就自动放行）', () => {
+    const info: EngineResolvedInfo = {
+      engineResolved: [],
+      registered: {},
+      served: ['llm', 'image_gen'],
+    };
+    expect(isServedCapability('video_gen', info)).toBe(false);
+    const later: EngineResolvedInfo = {
+      engineResolved: [],
+      registered: {},
+      served: ['llm', 'image_gen', 'video_gen'],
+    };
+    expect(isServedCapability('video_gen', later)).toBe(true);
+  });
+
+  it('候选一律标「此刻用不了」（不许给用户一个必然失败的选项）', () => {
+    const info: EngineResolvedInfo = { engineResolved: [], registered: {} };
+    const out = capabilityOptionsByCapability(videoCatalog, info);
+    expect(out.video_gen.map((o) => o.id)).toEqual([
+      'MiniMax-H3',
+      'MiniMax-Hailuo-2.3',
+    ]);
+    expect(out.video_gen.every((o) => o.usableNow === false)).toBe(true);
+  });
+
+  it('配了视频那一档 ⇒ 要报「用不了」（端脑不服务，不是引擎没注册）', () => {
+    const info: EngineResolvedInfo = { engineResolved: [], registered: {} };
+    const flagged = unusableCapabilityDefaults(
+      { video_gen: 'MiniMax-H3' },
+      info,
+      videoCatalog,
+    );
+    expect(flagged.map((f) => f.capability)).toEqual(['video_gen']);
+    expect(flagged[0].modelId).toBe('MiniMax-H3');
+  });
+
+  it('端脑说服务了这一档 ⇒ 不再报（端脑说了算）', () => {
+    const info: EngineResolvedInfo = {
+      engineResolved: [],
+      registered: {},
+      served: ['llm', 'video_gen'],
+    };
+    expect(
+      unusableCapabilityDefaults({ video_gen: 'MiniMax-H3' }, info, videoCatalog),
+    ).toEqual([]);
   });
 });

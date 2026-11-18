@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart' as http_testing;
-import 'package:shadow_mobile/services/genui/shadow_key_sse_transport.dart';
+import 'package:shadow_mobile/services/a2ui/shadow_key_sse_transport.dart';
 
 /// A2UI 那条 SSE 路**也是读面** ⇒ 它的凭据集合也得与门形一致。
 ///

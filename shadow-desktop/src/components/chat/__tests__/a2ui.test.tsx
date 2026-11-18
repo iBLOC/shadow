@@ -7,27 +7,33 @@ import { fileURLToPath } from 'node:url';
 
 import {
   A2UI_EXTENSION_URI,
-  A2uiSurfaceModel,
+  BASIC_CATALOG_ID,
+  SHADOW_CATALOG_ID,
   SseDecoder,
+  buildA2uiSurface,
+  buildSurfaceFromEvents,
+  extractA2uiMessages,
+  extractTextParts,
+  hasRenderableContent,
   isStructurallyEmptySurface,
-  type A2uiPayload,
+  isValidComponentId,
+  unknownComponentsOf,
+  type A2uiMessage,
 } from '../../../lib/a2uiProtocol';
 import { A2uiHttpError, requestA2uiSurface } from '../../../lib/a2uiClient';
 import { A2uiSurface } from '../A2uiSurface';
-import { A2uiPanel } from '../A2uiPanel';
 
 /**
- * The desktop is the **third consumer** of the cross-client A2UI contract.
+ * 桌面端是 A2UI 跨端契约的**第三个消费者**。
  *
- * The contract lives in `shadow/fixtures/a2ui/`:
- *   - `tasks_sse.txt`      — the exact SSE bytes the brain emits;
- *   - `tasks_surface.json` — the canonical component tree those bytes carry.
+ * 契约住在 `shadow/fixtures/a2ui/` 里：
+ *   - `tasks_sse.txt`      —— 端脑吐的 SSE 字节（**v1.0**）；
+ *   - `tasks_surface.json` —— 那些字节携带的标准组件树。
  *
- * Mobile (`shadow-mobile/test/widget/a2ui_*_test.dart`) replays the same
- * bytes through the Dart protocol stack. Here the same bytes go through the
- * TypeScript one. If the two implementations ever drift, the fixture stops
- * describing what the brain actually sends — so the fixture is the contract,
- * not a copy of it.
+ * 移动端重放**同一份字节** ⇒ ⇒ 两端吃的是同一份东西。
+ *
+ * ⚠️ **这一份判据钉的是「官方 SDK 真的吃懂了端脑的字节」** ——
+ * 协议层已经不是桌面端自己写的了（@a2ui/web_core 0.15.0）。
  */
 function fixturePath(name: string): string {
   let dir = dirname(fileURLToPath(import.meta.url));
@@ -42,9 +48,6 @@ function fixturePath(name: string): string {
 }
 
 const SSE_FIXTURE = readFileSync(fixturePath('tasks_sse.txt'), 'utf8');
-const SURFACE_FIXTURE = JSON.parse(
-  readFileSync(fixturePath('tasks_surface.json'), 'utf8'),
-) as A2uiPayload[];
 
 /** A response that streams the given text as-is (string chunks, no web APIs). */
 function fakeResponse(body: string, status = 200): Response {
@@ -70,129 +73,222 @@ function fakeResponse(body: string, status = 200): Response {
   } as unknown as Response;
 }
 
-/** Feed the raw SSE bytes through the protocol stack. */
-function modelFromSse(text: string): { model: A2uiSurfaceModel; events: number } {
-  const model = new A2uiSurfaceModel();
-  const decoder = new SseDecoder();
-  let events = 0;
-  for (const event of decoder.push(text)) {
-    events += 1;
-    model.applyEvent(JSON.parse(event));
+/** fixture 里的事件对象（逐条）。 */
+function fixtureEvents(): unknown[] {
+  const out: unknown[] = [];
+  for (const line of SSE_FIXTURE.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) continue;
+    out.push(JSON.parse(trimmed.slice('data:'.length).trim()));
   }
-  for (const event of decoder.flush()) {
-    events += 1;
-    model.applyEvent(JSON.parse(event));
-  }
-  return { model, events };
+  return out;
 }
 
-describe('A2UI protocol — desktop', () => {
-  it('frames the shared SSE fixture into exactly two A2A events', () => {
-    const { events } = modelFromSse(SSE_FIXTURE);
-    expect(events).toBe(2);
+/**
+ * 把 v1.0 消息包成一条 A2A 事件。
+ *
+ * ⚠️ **parts[].data 是对象**（官方 v1.0 的要求）—— 写成 JSON 字符串的话
+ * 客户端会**整条跳过** ⇒ 界面上什么都不出来且**不报错**（踩过的坑）。
+ */
+function a2aEvent(message: A2uiMessage): unknown {
+  return {
+    result: {
+      kind: 'task-status-update',
+      status: {
+        state: 'completed',
+        message: {
+          kind: 'message',
+          role: 'agent',
+          parts: [{ kind: 'data', data: message }],
+        },
+      },
+      final: true,
+    },
+  };
+}
+
+/**
+ * 一条端脑形状的 v1.0 任务面板消息。
+ *
+ * ⚠️ **组件 id 用 task0 这种形状** —— v1.0 的组件 id 必须是合法 UAX #31
+ * 标识符（官方 TS 与 Dart SDK 同规则）⇒ **连字符不合法**
+ * ⇒ ⇒ 不合法 ⇒ 整条消息被拒 ⇒ 界面上一个面都没有。
+ */
+function tasksMessage(
+  overrides: Partial<{
+    id: string;
+    title: string;
+    description: string;
+    status: string;
+    priority: string;
+  }> = {},
+): A2uiMessage {
+  const id = overrides.id ?? 'task0';
+  return {
+    version: '1.0',
+    createSurface: {
+      surfaceId: 'shadow.tasks',
+      catalogId: BASIC_CATALOG_ID,
+      components: [
+        { id: 'root', component: 'Column', children: ['title', id] },
+        { id: 'title', component: 'Text', text: '# Tasks (1)' },
+        {
+          id,
+          component: 'TaskCard',
+          // ⚠️ 端脑写的就是官方 v1.0 的键名（**无 @**）⇒ 客户端原样透传。
+          catalogId: SHADOW_CATALOG_ID,
+          title: overrides.title ?? '写周报',
+          description: overrides.description ?? '本周进展汇总',
+          status: overrides.status ?? 'in_progress',
+          priority: overrides.priority ?? 'high',
+        },
+      ],
+    },
+  };
+}
+
+/** 一条端脑形状的 v1.0 消息（**SSE 字节**，可直接当响应体）。 */
+function tasksSse(message: A2uiMessage = tasksMessage()): string {
+  return `data: ${JSON.stringify(a2aEvent(message))}\n\n`;
+}
+
+/** fixture 里的组件 id（用来核对端脑那一侧有没有守 UAX #31）。 */
+function fixtureComponentIds(): string[] {
+  const messages = extractA2uiMessages(fixtureEvents()[0]);
+  const section = messages[0]?.createSurface as
+    | { components: Record<string, unknown>[] }
+    | undefined;
+  return (section?.components ?? [])
+    .map((component) => component.id)
+    .filter((id): id is string => typeof id === 'string');
+}
+
+describe('A2UI 协议 — 桌面端（官方 SDK）', () => {
+  it('把端脑的 SSE 字节切成 A2A 事件', () => {
+    const decoder = new SseDecoder();
+    const events = [...decoder.push(SSE_FIXTURE), ...decoder.flush()];
+    expect(events).toHaveLength(1);
+    expect(JSON.parse(events[0]).result.kind).toBe('task-status-update');
   });
 
-  it('parses the shared fixture into the canonical surface', () => {
-    const { model } = modelFromSse(SSE_FIXTURE);
-    const surface = model.get('shadow.tasks');
+  it('从 A2A 事件里挖出 **v1.0 消息**（载荷在 parts[].data 里是**对象**）', () => {
+    const messages = extractA2uiMessages(fixtureEvents()[0]);
+    expect(messages).toHaveLength(1);
+    expect(messages[0].version).toBe('1.0');
+    const section = messages[0].createSurface as { surfaceId: string; components: unknown[] };
+    expect(section.surfaceId).toBe('shadow.tasks');
+    expect(section.components).toHaveLength(3);
+  });
 
-    expect(surface).toBeDefined();
-    expect(surface?.rendered).toBe(true);
+  it('**端脑发的就是 catalogId，客户端原样交给官方 SDK**（客户端不做协议翻译）', () => {
+    // ⚠️ 官方 v1.0 的组件目录键是 catalogId（**无 @**）⇒ 端脑发的就是它
+    // ⇒ ⇒ 客户端**一个字都不改** ⇒ ⇒ 目录解析由官方 SDK 做。
+    const messages = extractA2uiMessages(fixtureEvents()[0]);
+    const section = messages[0].createSurface as {
+      components: Record<string, unknown>[];
+    };
+    const card = section.components.find((c) => c.component === 'TaskCard');
+    expect(card?.catalogId).toBe(SHADOW_CATALOG_ID);
+    // ⚠️ 客户端**不**认识、也**不**发明别的键名。
+    expect(Object.keys(card ?? {}).sort()).toEqual(
+      ['catalogId', 'component', 'description', 'id', 'priority', 'status', 'title'].sort(),
+    );
+  });
+
+  it('**共享 fixture 的字节 ⇒ 官方 SDK 的判决与它的 UAX #31 规则一致**', () => {
+    // ⚠️ 这一条钉的是「共享契约」：端脑发的字节 ⇒ 官方 SDK 按**它自己的规则**
+    // 判决（组件 id 不合法 ⇒ 整条消息被拒 ⇒ 界面上一个面都没有）。
+    // ⚠️ 桌面端**不**替端脑改 id（那才是协议翻译层）。
+    const ids = fixtureComponentIds();
+    expect(ids.length).toBeGreaterThan(0);
+    const conforming = ids.every(isValidComponentId);
+    const { surface, errors } = buildA2uiSurface(fixtureEvents());
+    // ⚠️ 「有没有东西可画」才是用户看得见的那一格（面可能建出来了，
+    // 但里面一个组件都没进去 ⇒ 界面上还是空的）。
+    expect(hasRenderableContent(surface)).toBe(conforming);
+    if (conforming) {
+      expect(surface?.componentsModel.getAll().size).toBe(3);
+    } else {
+      // ⚠️ **不合规必须报出来**（不许静悄悄地什么都不画）。
+      expect(errors.join('\n')).toContain('UAX #31');
+    }
+  });
+
+  it('官方 SDK 把端脑的字节吃成一块面（**TaskCard 落在自建目录里**）', () => {
+    const surface = buildSurfaceFromEvents([a2aEvent(tasksMessage())]);
+    expect(surface).not.toBeNull();
+    expect(surface?.id).toBe('shadow.tasks');
     expect(surface?.rootId).toBe('root');
-    expect(surface?.components.map((c) => c.id)).toEqual(['root', 'title', 'task-0']);
+
+    const components = surface?.componentsModel.getAll();
+    expect(components?.size).toBe(3);
+    const card = components?.get('task0');
+    expect(card?.type).toBe('TaskCard');
+    // ⚠️ **目录解析成功** ⇒ 组件落在**自建目录**里（不是基础目录）。
+    expect(card?.catalog.id).toBe(SHADOW_CATALOG_ID);
+    expect(card?.properties.title).toBe('写周报');
+    expect(card?.properties.status).toBe('in_progress');
+    expect(card?.properties.priority).toBe('high');
   });
 
-  it('agrees with the canonical cross-client component tree', () => {
-    // ⚠️ This is the point of the fixture: the bytes on the wire and the
-    // canonical tree must describe the same surface. If the desktop's
-    // parser drifts from the brain's output, this is where it shows.
-    const fromBytes = modelFromSse(SSE_FIXTURE).model.get('shadow.tasks');
+  it('**组件 id 带连字符 ⇒ 官方必须拒**（负控：桌面端不替端脑改）', () => {
+    // ⚠️ v1.0 的组件 id 必须是合法 UAX #31 标识符 ⇒ 连字符不合法
+    // ⇒ ⇒ 官方 SDK 把那条组件拒掉 ⇒ ⇒ **界面上没有东西可画**，
+    // 而且**必须报出来**（不许静悄悄地什么都不画）。
+    expect(isValidComponentId('task0')).toBe(true);
+    expect(isValidComponentId('task-0')).toBe(false);
 
-    const fromContract = new A2uiSurfaceModel();
-    for (const payload of SURFACE_FIXTURE) fromContract.applyPayload(payload);
-    const fromTree = fromContract.get('shadow.tasks');
-
-    expect(fromBytes?.components).toEqual(fromTree?.components);
-    expect(fromBytes?.rootId).toBe(fromTree?.rootId);
+    const { surface, errors } = buildA2uiSurface([a2aEvent(tasksMessage({ id: 'task-0' }))]);
+    expect(hasRenderableContent(surface)).toBe(false);
+    expect(errors.join('\n')).toContain('UAX #31');
   });
 
-  it('keeps a surface unrenderable until beginRendering arrives', () => {
-    // ⚠️ A2UI is two-phase: `surfaceUpdate` only caches the components,
-    // `beginRendering` starts the render
-    // (`genui-0.7.0/lib/src/core/a2ui_message_processor.dart:160-197`).
-    // Rendering on the first phase would show a half-built screen.
-    const model = new A2uiSurfaceModel();
-    model.applyPayload(SURFACE_FIXTURE[0]);
+  it('**分得清「有内容」与「空」**（结构规则：除布局与文字外都是内容）', () => {
+    const withContent = buildSurfaceFromEvents([a2aEvent(tasksMessage())]);
+    expect(isStructurallyEmptySurface(withContent)).toBe(false);
 
-    expect(model.get('shadow.tasks')?.components).toHaveLength(3);
-    expect(model.renderableSurfaces).toHaveLength(0);
-
-    model.applyPayload(SURFACE_FIXTURE[1]);
-    expect(model.renderableSurfaces).toHaveLength(1);
-  });
-
-  it('drops a surface on deleteSurface', () => {
-    const model = new A2uiSurfaceModel();
-    for (const payload of SURFACE_FIXTURE) model.applyPayload(payload);
-    expect(model.surfaceIds).toContain('shadow.tasks');
-
-    model.applyPayload({ deleteSurface: { surfaceId: 'shadow.tasks' } });
-    expect(model.surfaceIds).not.toContain('shadow.tasks');
-  });
-
-  it('tells an empty surface from a surface with content', () => {
-    // ⚠️ 端脑把「没有内容」画成一个**只有文字**的板子
-    // （`telencephalon/src/a2a/a2ui.rs` → `render_tasks` / `render_agents`）
-    // ⇒ 「空」在**结构上**可判。
-    const emptyModel = new A2uiSurfaceModel();
-    emptyModel.applyPayload({
-      surfaceUpdate: {
+    // ⚠️ 端脑把「没有任务」画成**只有文字**的面 ⇒ 「空」在结构上可判。
+    const empty: A2uiMessage = {
+      version: '1.0',
+      createSurface: {
         surfaceId: 'shadow.tasks',
+        catalogId: BASIC_CATALOG_ID,
         components: [
-          { id: 'root', component: { Column: { children: ['title', 'empty'] } } },
-          { id: 'title', component: { Text: { text: { literalString: 'Tasks (0)' } } } },
-          {
-            id: 'empty',
-            component: { Text: { text: { literalString: 'No tasks yet.' } } },
-          },
+          { id: 'root', component: 'Column', children: ['title', 'empty'] },
+          { id: 'title', component: 'Text', text: '# Tasks (0)' },
+          { id: 'empty', component: 'Text', text: 'No tasks yet.' },
         ],
       },
-    });
-    emptyModel.applyPayload({ beginRendering: { surfaceId: 'shadow.tasks', root: 'root' } });
-
-    expect(isStructurallyEmptySurface(emptyModel.get('shadow.tasks'))).toBe(true);
-    // ⚠️ **有内容的那张不是空的** —— 断言有分辨力，不是恒真。
-    expect(
-      isStructurallyEmptySurface(modelFromSse(SSE_FIXTURE).model.get('shadow.tasks')),
-    ).toBe(false);
+    };
+    const emptySurface = buildSurfaceFromEvents([a2aEvent(empty)]);
+    expect(emptySurface).not.toBeNull();
+    expect(isStructurallyEmptySurface(emptySurface)).toBe(true);
   });
 
-  it('never calls a surface with an unknown component type empty', () => {
-    // ⚠️ **规则反过来写**（除布局与文字之外的都是内容），而不是认组件名白名单
-    // ⇒ 端脑加一种新组件（`Timeline` / `Chart` / …）时，
-    // 客户端**不会**把一张有内容的界面说成空的。
-    const model = new A2uiSurfaceModel();
-    model.applyPayload({
-      surfaceUpdate: {
-        surfaceId: 'shadow.future',
-        components: [
-          { id: 'root', component: { Column: { children: ['chart'] } } },
-          { id: 'chart', component: { Timeline: { points: [] } } },
-        ],
-      },
+  it('**不认识的组件类型降级成占位**，不许把整块界面带走', () => {
+    const message = tasksMessage();
+    const section = message.createSurface as { components: Record<string, unknown>[] };
+    section.components.push({
+      id: 'future',
+      component: 'Timeline',
+      children: [],
     });
-    model.applyPayload({ beginRendering: { surfaceId: 'shadow.future', root: 'root' } });
+    (section.components[0].children as string[]).push('future');
 
-    expect(isStructurallyEmptySurface(model.get('shadow.future'))).toBe(false);
+    const surface = buildSurfaceFromEvents([a2aEvent(message)]);
+    expect(surface).not.toBeNull();
+    // ⚠️ 界面**还在**（不是「什么都没有」）⇒ 端脑加了新组件不会白屏。
+    expect(surface?.componentsModel.get('task0')).toBeTruthy();
+    expect(unknownComponentsOf(surface)).toEqual([{ id: 'future', type: 'Timeline' }]);
   });
 });
 
-describe('A2UI client — desktop', () => {
-  it('posts to /a2a with the shadow key and the A2UI extension header', async () => {
+describe('A2UI 客户端 — 桌面端', () => {
+  it('posts to /a2a with the shadow key and the **v1.0** A2UI extension header', async () => {
     const calls: Array<{ url: string; init: RequestInit }> = [];
     const fetchImpl = vi.fn(async (url: unknown, init: RequestInit) => {
       calls.push({ url: String(url), init });
-      return fakeResponse(SSE_FIXTURE);
+      return fakeResponse(tasksSse());
     });
 
     const result = await requestA2uiSurface({
@@ -208,26 +304,32 @@ describe('A2UI client — desktop', () => {
 
     const headers = calls[0].init.headers as Record<string, string>;
     expect(headers['X-Shadow-Key']).toBe('the-real-key');
+    // ⚠️ **扩展 URI 自带版本** ⇒ 不带它端脑会退回 v0.8 那套。
     expect(headers['X-A2A-Extensions']).toBe(A2UI_EXTENSION_URI);
+    expect(A2UI_EXTENSION_URI).toBe('https://a2ui.org/a2a-extension/a2ui/v1.0');
 
     const body = JSON.parse(String(calls[0].init.body));
     expect(body.method).toBe('message/stream');
     // ⚠️ The view must be explicit — keyword matching would be at the mercy
-    // of the user's wording (`telencephalon/src/a2a/a2ui.rs` → resolve_view).
+    // of the user's wording.
     expect(body.params.message.metadata.a2ui.view).toBe('tasks');
 
-    expect(result.model.renderableSurfaces).toHaveLength(1);
+    // ⚠️ **能力协商**：没有它，端脑不知道客户端支持 v1.0 的哪些目录。
+    const capabilities = body.params.message.metadata.a2uiRendererCapabilities;
+    expect(capabilities['1.0'].supportedCatalogIds).toEqual([
+      BASIC_CATALOG_ID,
+      SHADOW_CATALOG_ID,
+    ]);
+
+    expect(result.surface).not.toBeNull();
+    expect(result.errors).toEqual([]);
   });
 
   it('asks the brain to speak the user language (Accept-Language)', async () => {
-    // ⚠️ The brain draws the screen — *and its words*. The words have
-    // to be in the user's language, so the client reports which one
-    // it wants; the truth source is the server
-    // (`telencephalon/src/a2a/a2ui_i18n.rs`).
-    const calls: Array<{ url: string; init: RequestInit }> = [];
-    const fetchImpl = vi.fn(async (url: unknown, init: RequestInit) => {
-      calls.push({ url: String(url), init });
-      return fakeResponse(SSE_FIXTURE);
+    const calls: Array<{ init: RequestInit }> = [];
+    const fetchImpl = vi.fn(async (_url: unknown, init: RequestInit) => {
+      calls.push({ init });
+      return fakeResponse(tasksSse());
     });
 
     await requestA2uiSurface({
@@ -243,10 +345,10 @@ describe('A2UI client — desktop', () => {
   });
 
   it('omits Accept-Language when nobody asked for a language', async () => {
-    const calls: Array<{ url: string; init: RequestInit }> = [];
-    const fetchImpl = vi.fn(async (url: unknown, init: RequestInit) => {
-      calls.push({ url: String(url), init });
-      return fakeResponse(SSE_FIXTURE);
+    const calls: Array<{ init: RequestInit }> = [];
+    const fetchImpl = vi.fn(async (_url: unknown, init: RequestInit) => {
+      calls.push({ init });
+      return fakeResponse(tasksSse());
     });
 
     await requestA2uiSurface({
@@ -256,16 +358,14 @@ describe('A2UI client — desktop', () => {
     });
 
     const headers = calls[0].init.headers as Record<string, string>;
-    // ⚠️ No header ⇒ the brain falls back to English — the very same
-    // bytes it produced before this feature existed.
     expect(headers['Accept-Language']).toBeUndefined();
   });
 
   it('omits the shadow key header when the brain runs in dev mode', async () => {
-    const calls: Array<{ url: string; init: RequestInit }> = [];
-    const fetchImpl = vi.fn(async (url: unknown, init: RequestInit) => {
-      calls.push({ url: String(url), init });
-      return fakeResponse(SSE_FIXTURE);
+    const calls: Array<{ init: RequestInit }> = [];
+    const fetchImpl = vi.fn(async (_url: unknown, init: RequestInit) => {
+      calls.push({ init });
+      return fakeResponse(tasksSse());
     });
 
     await requestA2uiSurface({
@@ -292,282 +392,99 @@ describe('A2UI client — desktop', () => {
   });
 });
 
-describe('A2UI surface renderer — desktop', () => {
-  it('renders the task card from the shared fixture', () => {
-    const surface = modelFromSse(SSE_FIXTURE).model.get('shadow.tasks');
+describe('A2UI surface renderer — 桌面端', () => {
+  it('renders the task card', async () => {
+    const surface = buildSurfaceFromEvents([a2aEvent(tasksMessage())]);
     render(<A2uiSurface surface={surface!} />);
 
+    await waitFor(() => expect(screen.getByTestId('a2ui-surface')).toBeInTheDocument());
     expect(screen.getByTestId('a2ui-surface')).toHaveAttribute('data-surface-id', 'shadow.tasks');
-    expect(screen.getByText('Tasks (1)')).toBeInTheDocument();
 
-    const card = screen.getByTestId('a2ui-task-card');
+    const card = await screen.findByTestId('a2ui-task-card');
     expect(card).toHaveAttribute('data-status', 'in_progress');
     expect(card).toHaveAttribute('data-priority', 'high');
     expect(screen.getByText('写周报')).toBeInTheDocument();
     expect(screen.getByText('本周进展汇总')).toBeInTheDocument();
+    // ⚠️ 官方基础目录的 Text 走 Markdown ⇒ "# Tasks (1)" 变成一个标题。
+    expect(screen.getByText('Tasks (1)')).toBeInTheDocument();
   });
 
-  it('renders an unknown component type as a placeholder instead of throwing', () => {
-    const model = new A2uiSurfaceModel();
-    model.applyPayload({
-      surfaceUpdate: {
-        surfaceId: 'shadow.future',
-        components: [
-          { id: 'root', component: { SomeFutureWidget: { anything: true } } },
-        ],
-      },
-    });
-    model.applyPayload({ beginRendering: { surfaceId: 'shadow.future', root: 'root' } });
+  it('**端脑发来 cancelled / overdue ⇒ 界面照样画得出来**', async () => {
+    // ⚠️ 枚举少一档 ⇒ 官方 SDK 按目录 schema **拒掉整条消息**
+    // ⇒ ⇒ 界面「什么都没有」⇒ 失败长得像成功。
+    for (const status of ['cancelled', 'overdue'] as const) {
+      const surface = buildSurfaceFromEvents([
+        a2aEvent(tasksMessage({ id: 'taskx', title: '过期任务', status })),
+      ]);
+      expect(surface).not.toBeNull();
+      expect(surface?.componentsModel.get('taskx')).toBeTruthy();
 
-    render(<A2uiSurface surface={model.get('shadow.future')!} />);
-    expect(screen.getByTestId('a2ui-unknown-component')).toHaveAttribute(
-      'data-component-type',
-      'SomeFutureWidget',
-    );
+      const view = render(<A2uiSurface surface={surface!} />);
+      const card = await screen.findByTestId('a2ui-task-card');
+      expect(card).toHaveAttribute('data-status', status);
+      expect(screen.getByText('过期任务')).toBeInTheDocument();
+      view.unmount();
+    }
   });
 
-  it('never paints an unknown agent status as "idle" (unknown ≠ healthy)', () => {
-    // ⚠️ 端脑对「从没被探活过的叶区」报 `unknown`
-    // （`telencephalon/src/a2a/a2ui.rs` 的 `agent_status`）⇒ 客户端
-    // **不许**把它画成 `idle` —— 在手机上是**绿灯**（= 就绪），
-    // 而那 4 条占位叶区**从来没被联系过**。
-    //
-    // ⚠️ 端脑哪天多说一个词（客户端还不认识）⇒ **也不许**落回 idle。
-    const model = new A2uiSurfaceModel();
-    model.applyPayload({
-      surfaceUpdate: {
-        surfaceId: 'shadow.agents',
-        components: [
-          { id: 'root', component: { Column: { children: ['a0', 'a1', 'a2', 'a3'] } } },
-          {
-            id: 'a0',
-            component: {
-              AgentStatusIndicator: {
-                agentName: 'parietal',
-                status: 'unknown',
-                message: 'not probed',
-              },
-            },
-          },
-          {
-            id: 'a1',
-            component: { AgentStatusIndicator: { agentName: 'temporal', status: 'brand-new' } },
-          },
-          {
-            id: 'a2',
-            component: { AgentStatusIndicator: { agentName: 'frontal', status: 'idle' } },
-          },
-          {
-            // ⚠️ **连 status 都没说** ⇒ 更不许当成「就绪」。
-            id: 'a3',
-            component: { AgentStatusIndicator: { agentName: 'occipital' } },
-          },
-        ],
-      },
-    });
-    model.applyPayload({ beginRendering: { surfaceId: 'shadow.agents', root: 'root' } });
+  it('renders an unknown component type as a placeholder instead of throwing', async () => {
+    const message = tasksMessage();
+    const section = message.createSurface as { components: Record<string, unknown>[] };
+    section.components.push({ id: 'future', component: 'SomeFutureWidget', anything: true });
+    (section.components[0].children as string[]).push('future');
 
-    render(<A2uiSurface surface={model.get('shadow.agents')!} />);
+    const surface = buildSurfaceFromEvents([a2aEvent(message)]);
+    render(<A2uiSurface surface={surface!} />);
 
-    const rows = screen.getAllByTestId('a2ui-agent-status');
-    expect(rows).toHaveLength(4);
-    const badge = (row: HTMLElement): string => row.querySelector('span')?.className ?? '';
-
-    // `unknown` 有自己的一档（虚线框）⇒ 形状上就与 `idle` 分得开
-    expect(rows[0]).toHaveAttribute('data-status', 'unknown');
-    expect(badge(rows[0])).toContain('border-dashed');
-
-    // ⚠️ **端脑多说一个词** ⇒ 也不许落回 `idle` 那档
-    expect(rows[1]).toHaveAttribute('data-status', 'brand-new');
-    expect(badge(rows[1])).toContain('border-dashed');
-
-    // ⚠️ **连 status 都没说** ⇒ 缺省是「不知道」，不是「就绪」
-    expect(rows[3]).toHaveAttribute('data-status', 'unknown');
-    expect(badge(rows[3])).toContain('border-dashed');
-
-    // `idle` 是另一档（没有虚线）⇒ 上面的断言有分辨力，不是恒真
-    expect(rows[2]).toHaveAttribute('data-status', 'idle');
-    expect(badge(rows[2])).not.toContain('border-dashed');
-  });
-
-  it('renders a component that is referenced twice, twice', () => {
-    // ⚠️ The cycle guard must ask "is this an **ancestor** of me?", not
-    // "have I seen this id before?" — a "seen" set would silently swallow the
-    // second reference and the user would lose part of the screen.
-    const model = new A2uiSurfaceModel();
-    model.applyPayload({
-      surfaceUpdate: {
-        surfaceId: 'shadow.shared',
-        components: [
-          { id: 'root', component: { Column: { children: ['left', 'right'] } } },
-          { id: 'left', component: { Column: { children: ['shared'] } } },
-          { id: 'right', component: { Column: { children: ['shared'] } } },
-          { id: 'shared', component: { Text: { text: { literalString: 'shared' } } } },
-        ],
-      },
-    });
-    model.applyPayload({ beginRendering: { surfaceId: 'shadow.shared', root: 'root' } });
-
-    render(<A2uiSurface surface={model.get('shadow.shared')!} />);
-    expect(screen.getAllByText('shared')).toHaveLength(2);
-  });
-
-  it('stops at a component that references itself instead of looping forever', () => {
-    const model = new A2uiSurfaceModel();
-    model.applyPayload({
-      surfaceUpdate: {
-        surfaceId: 'shadow.cycle',
-        components: [
-          { id: 'root', component: { Column: { children: ['root'] } } },
-        ],
-      },
-    });
-    model.applyPayload({ beginRendering: { surfaceId: 'shadow.cycle', root: 'root' } });
-
-    render(<A2uiSurface surface={model.get('shadow.cycle')!} />);
-    expect(screen.getByTestId('a2ui-surface')).toHaveAttribute(
-      'data-surface-id',
-      'shadow.cycle',
-    );
+    const placeholder = await screen.findByTestId('a2ui-unknown-component');
+    expect(placeholder).toHaveAttribute('data-component-type', 'SomeFutureWidget');
   });
 });
 
-describe('A2UI panel — desktop', () => {
-  it('renders the surface end-to-end from the shared fixture bytes', async () => {
-    const fetchImpl = vi.fn(async () => fakeResponse(SSE_FIXTURE));
-
-    render(
-      <A2uiPanel
-        baseUrl="http://127.0.0.1:60080"
-        apiKey="the-real-key"
-        fetchImpl={fetchImpl as unknown as typeof fetch}
-      />,
-    );
-
-    await waitFor(() => expect(screen.getByTestId('a2ui-surface')).toBeInTheDocument());
-    expect(screen.getByText('写周报')).toBeInTheDocument();
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-  });
-
-  it('tells the brain which language the interface is in', async () => {
-    // ⚠️ The panel is the one that knows the app language
-    // (i18next) ⇒ it has to hand it to the client, or the brain
-    // keeps answering in English.
-    const calls: Array<{ init: RequestInit }> = [];
-    const fetchImpl = vi.fn(async (_url: unknown, init: RequestInit) => {
-      calls.push({ init });
-      return fakeResponse(SSE_FIXTURE);
-    });
-
-    render(
-      <A2uiPanel
-        baseUrl="http://127.0.0.1:60080"
-        apiKey="the-real-key"
-        fetchImpl={fetchImpl as unknown as typeof fetch}
-      />,
-    );
-
-    await waitFor(() => expect(screen.getByTestId('a2ui-surface')).toBeInTheDocument());
-    const headers = calls[0].init.headers as Record<string, string>;
-    // `tests/setup.ts` mocks react-i18next with `i18n: { language: 'en' }`.
-    expect(headers['Accept-Language']).toBe('en');
-  });
-
-  it("shows the brain's plain-text answer when there is no view to draw", async () => {
-    // ⚠️ The brain answers a request it cannot render with plain text, not an
-    // error (`telencephalon/src/api/a2ui_gateway.rs` → text_reply). Showing
-    // "no data" instead would hide the brain's actual answer.
-    const textReply =
-      'data: {"result":{"kind":"task-status-update","status":{"state":"completed","message":{"kind":"message","role":"agent","parts":[{"kind":"text","text":"这里能看什么"}]}},"final":true}}\n\n';
-    const fetchImpl = vi.fn(async () => fakeResponse(textReply));
-
-    render(
-      <A2uiPanel
-        baseUrl="http://127.0.0.1:60080"
-        fetchImpl={fetchImpl as unknown as typeof fetch}
-      />,
-    );
-
-    // ⚠️ **纯文本是它自己的一档** —— 不再与「什么都没有」并成一种。
-    await waitFor(() => expect(screen.getByTestId('a2ui-text')).toBeInTheDocument());
-    expect(screen.getByText('这里能看什么')).toBeInTheDocument();
-    expect(screen.queryByTestId('a2ui-error')).not.toBeInTheDocument();
-    // ⚠️ **不许再压一句「暂无数据」** —— 端脑明明说了话（"这里能看什么"）。
-    // 旧版把这两种并成一种 ⇒ 纯文本时先显示「暂无数据」⇒ **假话**。
-    // （`tests/setup.ts` 把 `t(key)` mock 成返回 key 本身。）
-    expect(screen.queryByText('common.noData')).not.toBeInTheDocument();
-  });
-
-  it('says "no data" only when the brain said nothing at all', async () => {
-    // ⚠️ 「暂无数据」**只**属于这一档 —— 端脑连一句话都没说。
-    const fetchImpl = vi.fn(async () => fakeResponse(''));
-
-    render(
-      <A2uiPanel
-        baseUrl="http://127.0.0.1:60080"
-        fetchImpl={fetchImpl as unknown as typeof fetch}
-      />,
-    );
-
-    await waitFor(() => expect(screen.getByTestId('a2ui-empty')).toBeInTheDocument());
-    expect(screen.getByText('common.noData')).toBeInTheDocument();
-    // ⚠️ 这一档**不是**「纯文本」⇒ 断言有分辨力，不是恒绿。
-    expect(screen.queryByTestId('a2ui-text')).not.toBeInTheDocument();
-  });
-
+describe('A2UI — 面板摘除后保留的断言（挂共享渲染器，不再经面板）', () => {
   it('tells an empty surface apart from a surface with content', async () => {
-    // ⚠️ 端脑把「没有任务」画成一个**只有文字**的板子
-    // （`telencephalon/src/a2a/a2ui.rs` → `render_tasks`：列表为空时
-    // 产出 `root`(Column) + `title`(Text) + `empty`(Text)）
-    // ⇒ 「空」在**结构上**就是可判的。
-    const emptySurfaceSse =
-      'data: {"result":{"kind":"task-status-update","status":{"state":"working","message":{"kind":"message","role":"agent","parts":[{"kind":"data","data":{"surfaceUpdate":{"surfaceId":"shadow.tasks","components":[{"id":"root","component":{"Column":{"children":["title","empty"],"alignment":"stretch"}}},{"id":"title","component":{"Text":{"text":{"literalString":"Tasks (0)"},"usageHint":"h3"}}},{"id":"empty","component":{"Text":{"text":{"literalString":"No tasks yet."}}}}]}}}]}},"final":false}}\n\n' +
-      'data: {"result":{"kind":"task-status-update","status":{"state":"completed","message":{"kind":"message","role":"agent","parts":[{"kind":"data","data":{"beginRendering":{"surfaceId":"shadow.tasks","root":"root"}}}]}},"final":true}}\n\n';
+    const emptyMessage: A2uiMessage = {
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'shadow.tasks',
+        catalogId: BASIC_CATALOG_ID,
+        components: [
+          { id: 'root', component: 'Column', children: ['title', 'empty'] },
+          { id: 'title', component: 'Text', text: '# Tasks (0)' },
+          { id: 'empty', component: 'Text', text: 'No tasks yet.' },
+        ],
+      },
+    };
+    const surface = buildSurfaceFromEvents([a2aEvent(emptyMessage)]);
 
-    const fetchImpl = vi.fn(async () => fakeResponse(emptySurfaceSse));
-
-    render(
-      <A2uiPanel
-        baseUrl="http://127.0.0.1:60080"
-        fetchImpl={fetchImpl as unknown as typeof fetch}
-      />,
-    );
+    render(<A2uiSurface surface={surface!} />);
 
     await waitFor(() => expect(screen.getByTestId('a2ui-surface')).toBeInTheDocument());
     // ⚠️ **空**这件事在 DOM 上是**可判的**（不靠眼力）。
     expect(screen.getByTestId('a2ui-surface')).toHaveAttribute('data-surface-empty', 'true');
     // 端脑**自己**在空 surface 里说了实话 ⇒ 客户端**不再补一句**概括。
-    expect(screen.getByText('Tasks (0)')).toBeInTheDocument();
+    expect(await screen.findByText('Tasks (0)')).toBeInTheDocument();
     expect(screen.getByText('No tasks yet.')).toBeInTheDocument();
     expect(screen.queryByText('common.noData')).not.toBeInTheDocument();
   });
 
   it('marks a surface with content as not empty', async () => {
-    const fetchImpl = vi.fn(async () => fakeResponse(SSE_FIXTURE));
+    const surface = buildSurfaceFromEvents([a2aEvent(tasksMessage())]);
 
-    render(
-      <A2uiPanel
-        baseUrl="http://127.0.0.1:60080"
-        fetchImpl={fetchImpl as unknown as typeof fetch}
-      />,
-    );
+    render(<A2uiSurface surface={surface!} />);
 
     await waitFor(() => expect(screen.getByTestId('a2ui-surface')).toBeInTheDocument());
-    // ⚠️ 断言有分辨力：同一块 DOM，同一个属性，两种取值。
     expect(screen.getByTestId('a2ui-surface')).toHaveAttribute('data-surface-empty', 'false');
   });
 
-  it('shows an error when the brain refuses the request', async () => {
-    const fetchImpl = vi.fn(async () => fakeResponse('unauthorized', 401));
-
-    render(
-      <A2uiPanel
-        baseUrl="http://127.0.0.1:60080"
-        fetchImpl={fetchImpl as unknown as typeof fetch}
-      />,
-    );
-
-    await waitFor(() => expect(screen.getByTestId('a2ui-error')).toBeInTheDocument());
-    expect(screen.queryByTestId('a2ui-surface')).not.toBeInTheDocument();
+  it('**纯文本回复被如实挖出来**（协议层）', () => {
+    const texts = extractTextParts({
+      result: {
+        status: {
+          message: { parts: [{ kind: 'text', text: '这里能看什么' }] },
+        },
+      },
+    });
+    expect(texts).toEqual(['这里能看什么']);
   });
 });

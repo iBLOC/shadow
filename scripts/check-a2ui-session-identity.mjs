@@ -16,11 +16,28 @@
  * | 环节 | 事实 | 证据 |
  * |---|---|---|
  * | 端脑 `POST /a2a` | **不落会话** —— 每次请求新造 `task_id` + `context_id`，从不碰 `ConversationStore` | `telencephalon/src/api/a2ui_gateway.rs:68-69`（两个 `Uuid::new_v4()`）、`:85`（只读 `state.task_store`）、`:89`（只读 `state.lobe_cache`） |
- * | 客户端 A2UI 发送 | **不经 `chatProvider`** —— `Agent2UIInputBar` 直接 `service.sendMessage(text)` | `shadow-mobile/lib/widgets/chat/agent2ui_view.dart`（输入条） |
+ * | 客户端 A2UI 发送 | **不经 `chatProvider`** —— 独立形态的输入条直接 `service.sendMessage(text)` | ⚠️ **2026-11-18：移动端那条独立形态已下线** ⇒ ⇒ 本闸的移动端那一条**退场**（桌面端那块独立面板仍在 ⇒ ⇒ 它的腿继续有效） |
  * | 两端 A2UI 界面 | **都不显示会话身份** —— 桌面 `A2uiPanel.tsx` 里 `conversation|session|title` 命中 **0** 次 | 本闸自己量 |
  *
  * ⇒ ⇒ **A2UI 形态是一条「不记会话」的形态**（每一次请求对端脑都是新的
  * `context_id`，没有「上一条会话」这回事）。
+ *
+ * ## ⚠️ 2026-11-18：**移动端那条腿退场**（形态没了 ⇒ ⇒ 判据的对象也没了）
+ *
+ * 用户诉求逐字：「现在移动端 对话也没按和agent2ui页面还是两个页面有没有一种
+ * 可能合并为一个页面使用a2ui 传输协议使用ag-ui」⇒ ⇒ 移动端摘掉了那块
+ * **走 A2A 的独立面板**（`A2uiPanel`）⇒ ⇒ 移动端**不再有「独立的 A2UI 形态」**
+ * ⇒ ⇒ 它的 A2UI 面现在**内联在对话消息里**（AG-UI 承载）⇒ ⇒ 走的是
+ * **对话那条链路**（**落会话**）⇒ ⇒ **本闸的「不落 ⇒ 不说」那条不适用于它**
+ * ⇒ ⇒ 移动端**从 `CLIENTS` 里退场**（它没有 A2A 形态可判了）。
+ *
+ * ⚠️ **移动端那条判据没有消失，只是换了主人**：
+ * 「**内联面不许自己另说会话身份**」现在归 `check-mobile-single-a2ui-carrier.mjs`
+ * 的 **M7**（内联块不许引用 `sessionId`／`activeConversationAgent`／
+ * `deriveConversationTitle`）⇒ ⇒ 那条纪律**仍被机器钉着**。
+ *
+ * ⚠️ **桌面端那条腿仍在**（`A2uiPanel.tsx` 还是一块**独立**的 A2A 面板）⇒ ⇒
+ * 「端脑 `/a2a` 不落会话 ⇒ ⇒ 客户端不许说会话身份」对它**继续有效**。
  *
  * ## 所以那一行**不该补**
  *
@@ -74,28 +91,37 @@ const SERVER_SESSION_MARKERS = [
   'conversations.json',
 ];
 
-/** 客户端：A2UI 视图里「说会话身份」的样子。 */
+/**
+ * 客户端：A2UI 视图里「说会话身份」的样子。
+ *
+ * ⚠️ **移动端那条腿已于 2026-11-18 退场** —— 移动端摘掉了那块走 A2A 的
+ * **独立面板** ⇒ ⇒ 它**不再有「独立的 A2UI 形态」** ⇒ ⇒ 它的 A2UI 面
+ * **内联在对话消息里**（AG-UI 承载、**落会话**）⇒ ⇒ 本闸「不落 ⇒ 不说」
+ * 那条对它**不适用** ⇒ ⇒ 退场。
+ * ⇒ ⇒ 「内联面不许自己另说会话身份」由 `check-mobile-single-a2ui-carrier.mjs`
+ * 的 M7 钉着 ⇒ ⇒ **那条纪律没消失，只是换了主人**。
+ *
+ * ⚠️ **桌面端那条腿也已于 2026-11-18 退场**（同一族）—— 桌面端摘掉了那块
+ * 走 A2A 的**独立面板**（台账 U+37B3 条 ⑦❷ ⇒ 桌面端另起那一刀）⇒ ⇒
+ * 桌面端也**不再有「独立的 A2UI 形态」** ⇒ ⇒ 面同样**内联在对话消息里**。
+ * ⇒ ⇒ 「内联面不许自己另说会话身份」由
+ * `check-desktop-single-a2ui-carrier.mjs` 的 M7 钉着 ⇒ ⇒ 纪律换主人，没消失。
+ *
+ * ⚠️ 客户端工具画的内联面（两端都有）**取数**仍走 A2A —— 但它**长在消息流里**、
+ * 不另说会话身份 ⇒ ⇒ 不是「独立的 A2UI 形态」⇒ ⇒ 不在本闸的宇宙里
+ * （它的取数归位＝端脑给工具结果挂 a2ui_operations，是端脑侧下一刀）。
+ */
 export const CLIENTS = [
-  {
-    label: '移动端 A2UI 形态',
-    file: 'shadow-mobile/lib/widgets/chat/agent2ui_view.dart',
-    markers: ['active-conversation', 'sessionId', 'deriveConversationTitle', 'activeConversationAgent'],
-  },
-  {
-    label: '桌面端 A2UI 面板',
-    file: 'shadow-desktop/src/components/chat/A2uiPanel.tsx',
-    markers: ['active-conversation', 'sessionId', 'deriveConversationTitle', 'activeConversationAgent'],
-  },
 ];
 
-/** 客户端**发消息**的那条路 —— 必须**不**经过会话存储。 */
+/**
+ * 客户端**发消息**的那条路 —— 必须**不**经过会话存储。
+ *
+ * ⚠️ 移动端那条**同批退场**（它的独立形态没了 ⇒ ⇒ 没有「独立的 A2UI 发送」
+ * 这条路了 ⇒ ⇒ 移动端现在**只有对话那一条**发送路径，而对话那条**本来就落会话**
+ * ⇒ ⇒ 与本闸的「A2A 形态不落会话」**不冲突**（那是两条不同的路）。
+ */
 export const CLIENT_SEND_PATHS = [
-  {
-    label: '移动端 A2UI 发送',
-    file: 'shadow-mobile/lib/widgets/chat/agent2ui_view.dart',
-    // 会话存储的入口：出现**任何一个** ⇒ 它把消息写进了「某条会话」。
-    sessionMarkers: ['chatProvider', 'createConversation', 'streamMessage'],
-  },
 ];
 
 /**
@@ -219,10 +245,18 @@ function selfTest() {
   check('处理函数**之外**提到会话存储 ⇒ 仍判「不落会话」',
     serverPersistsSession(serverMentionElsewhere).persists === false);
 
+  // ⚠️ **两条客户端腿都已退场**（移动端 ＋ 桌面端的独立 A2A 面板都摘了）
+  // ⇒ ⇒ 本闸对客户端**没有可判对象**（CLIENTS 为空）⇒ ⇒ 剩下的职责只有
+  // 服务端那一腿（/a2a 落不落会话）；「内联面不许自己另说会话身份」
+  // 已由两端 single-a2ui-carrier 闸的 M7 接手。
+  // ⇒ ⇒ 自检夹具**自己带 marker 表**（不再从 CLIENTS 借 —— 那里已经空了）。
+  check('两条客户端腿都退场 ⇒ CLIENTS 为空（客户端无独立 A2A 形态可判）',
+    Array.isArray(CLIENTS) && CLIENTS.length === 0);
+  const fixtureMarkers = ['active-conversation', 'sessionId', 'deriveConversationTitle', 'activeConversationAgent'];
   const mkClient = (text, sendPathHits = []) => ({
     label: '假客户端',
     text,
-    markers: CLIENTS[0].markers,
+    markers: fixtureMarkers,
     sendPathHits,
   });
 

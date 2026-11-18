@@ -464,6 +464,39 @@ class _ProviderCard extends ConsumerWidget {
               ).textTheme.bodySmall?.copyWith(color: AppColors.error),
             ),
           ],
+          // ⚠️ **来源要标出来**（2026-11-16）—— 端脑在「上游压根没有「模型
+          // 列表」这个接口」时会顶上**按官方文档预设的清单**⇒ ⇒ 界面必须说清
+          // 这份**不是实时拉的**（不许「失败长得像成功」）。
+          // ⚠️ **输入模态的来源也要说**（2026-11-16）—— 只给最终模态、
+          // 不说来源 ⇒ ⇒「上游真给的」与「我们按官方文档预设的」在界面
+          // 上长得一样 ⇒ ⇒ 猜错了没人发现 ⇒ ⇒ 这一行把用过的来源列出来。
+          if (provider.models.any((m) => m.inputModalities.isNotEmpty))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _modalitySourceLine(
+                  provider.models,
+                  l10n.providerInputModalitiesSource,
+                  {
+                    'upstream': l10n.providerInputModalitiesSourceUpstream,
+                    'catalog': l10n.providerInputModalitiesSourceCatalog,
+                    'default': l10n.providerInputModalitiesSourceDefault,
+                  },
+                ),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.darkTextSecondary,
+                ),
+              ),
+            ),
+          if (provider.modelsSource == 'preset') ...[
+            const SizedBox(height: 8),
+            Text(
+              l10n.providerModelsFromDocs,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.darkTextSecondary,
+              ),
+            ),
+          ],
           if (provider.models.isNotEmpty) ...[
             const SizedBox(height: 8),
             // ⚠️ 过滤后一条不剩 ⇒ **说人话**（不画空白）：目录里的都还没下载
@@ -491,6 +524,11 @@ class _ProviderCard extends ConsumerWidget {
                       label: Text(
                         [
                           if (m.capability != null) m.capability!,
+                          // ⚠️ **输入模态**（2026-11-16）—— 只吃文本是
+                          // **兜底默认值** ⇒ ⇒ 那种不写（写出来全是噪音）
+                          // ⇒ ⇒ 只在「不止文本」时显示。
+                          if (_showModalities(m.inputModalities))
+                            m.inputModalities.join('/'),
                           m.id,
                           if (m.available == false) l10n.providerModelNotDownloaded,
                         ].join(' · '),
@@ -1051,4 +1089,37 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
+}
+
+/// ⚠️ **只吃文本就别显示**（2026-11-16）—— 那是**兜底默认值**（端脑读面
+/// ⚠️ **只吃文本就别显示**（2026-11-16）—— 那是**兜底默认值**（端脑读面
+/// 三档判据的最后一档）⇒ ⇒ 每条都写出来全是噪音 ⇒ ⇒ 只在「不止文本」时显示。
+bool _showModalities(List<String> modalities) =>
+    modalities.isNotEmpty &&
+    !(modalities.length == 1 && modalities.first == 'text');
+
+/// 这一堆模型用过的**模态来源**（去重；顺序固定：上游 → 文档预设 → 默认）。
+///
+/// ⚠️ 为什么要列出来：只给最终模态、不说来源 ⇒ ⇒「上游真给的」与「我们按
+/// 官方文档预设的」在界面上长得一样 ⇒ ⇒ 猜错了没人发现。
+String _modalitySourceLine(
+  List<RegisteredModel> models,
+  String label,
+  Map<String, String> labels,
+) {
+  final sources = <String>{};
+  for (final m in models) {
+    final s = m.inputModalitiesSource;
+    if (s != null && s.isNotEmpty) sources.add(s);
+  }
+  if (sources.isEmpty) return label;
+  const order = <String>['upstream', 'catalog', 'default'];
+  final sorted = sources.toList();
+  sorted.sort((a, b) {
+    final ia = order.indexOf(a);
+    final ib = order.indexOf(b);
+    return (ia < 0 ? 99 : ia).compareTo(ib < 0 ? 99 : ib);
+  });
+  final words = sorted.map((s) => labels[s] ?? s).join(' · ');
+  return '$label: $words';
 }

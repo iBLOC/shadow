@@ -33,11 +33,85 @@ class TtsSpeakResult {
   /// 真的出声了吗。
   final bool spoke;
 
+  /// **因为设备静音而跳过**（一次合成都没发 ⇒ 省了 TTS 算力）。
+  ///
+  /// ⚠️ **跳过 ≠ 失败** —— 失败是「该出声没出声」（用户要处理）⇒ ⇒
+  /// 跳过是「用户自己把声音关了」（尊重他的意图）⇒ ⇒ 但**也不许静默**
+  /// ⇒ ⇒ 手动触发的那几条路要报出去，自动朗读那条路静默（见
+  /// `speak(reportSkip: …)`）。
+  final bool skipped;
+
   /// 没出声的**原因**（原话，不重包）⇒ ⇒ 界面能说清「为什么没声」。
   final String? reason;
 
-  const TtsSpeakResult.spoke() : spoke = true, reason = null;
-  const TtsSpeakResult.failed(this.reason) : spoke = false;
+  const TtsSpeakResult.spoke()
+      : spoke = true,
+        skipped = false,
+        reason = null;
+  const TtsSpeakResult.failed(this.reason)
+      : spoke = false,
+        skipped = false;
+  const TtsSpeakResult.skippedMuted(this.reason)
+      : spoke = false,
+        skipped = true;
+}
+
+/// **一档探针读数** —— **三态**（不是布尔）。
+///
+/// ⚠️ **「查不到」必须与「有声音」分开** —— 查不到时上层按「不安静」
+/// 处理（宁可多合成一次，也绝不静默吞掉声音）⇒ ⇒ 把两者混成一个布尔
+/// ⇒ ⇒ 查不到那台机器上的声音会被**静默吞掉**（用户毫无察觉）。
+enum DeviceSoundProbe {
+  /// **确定该安静**（音量 0 ／ 静音档 ／ 振动档 ／ 勿扰开着）。
+  muted,
+
+  /// **确定不安静**（音量有 ／ 正常档 ／ 勿扰关着）。
+  unmuted,
+
+  /// **查不到** —— 不是「不安静」，是「不知道」。
+  unknown,
+}
+
+/// **设备声音状态** —— **三档，每档各自三态**。
+///
+/// ⚠️ **为什么分三档**（2026-11-16 用户追加：「静音模式也不需要 tts」）：
+/// ⇒ ⇒ 响铃档（静音／振动）与勿扰都要算 ⇒ ⇒ 但它们**物理上并不让媒体
+/// 流闭嘴**（静音模式管的是通知/铃声，媒体流照常有声）⇒ ⇒ 这两档是
+/// **产品裁定**（尊重用户意图、少烧算力）⇒ ⇒ **不是**「没人听得见」
+/// ⇒ ⇒ 措辞必须如实。
+class DeviceAudioState {
+  /// **媒体音量**那一档（音量 0 **或**媒体流被静音）。
+  final DeviceSoundProbe volume;
+
+  /// **响铃档**那一档（静音档 ／ 振动档 ⇒ muted；正常档 ⇒ unmuted）。
+  final DeviceSoundProbe ringer;
+
+  /// **勿扰**那一档（开着 ⇒ muted；关着 ⇒ unmuted）。
+  final DeviceSoundProbe dnd;
+
+  const DeviceAudioState({
+    required this.volume,
+    required this.ringer,
+    required this.dnd,
+  });
+
+  /// **查不到** —— 不是「有声音」，是「不知道」。
+  const DeviceAudioState.unknown()
+      : volume = DeviceSoundProbe.unknown,
+        ringer = DeviceSoundProbe.unknown,
+        dnd = DeviceSoundProbe.unknown;
+
+  /// **该不该跳过朗读** —— **纯函数，规则只有这一份**。
+  ///
+  /// ⚠️ **任何一档 `unknown` 都不会导致跳过** ⇒ ⇒ 「查不到」按「不安静」
+  /// 处理 ⇒ ⇒ 方向是**不对称**的：误判「该安静」＝吞掉声音（不可接受）；
+  /// 误判「不安静」＝白烧一次算力（可接受）。
+  String? get skipReason {
+    if (volume == DeviceSoundProbe.muted) return '媒体音量为 0';
+    if (ringer == DeviceSoundProbe.muted) return '设备处于静音或振动档';
+    if (dnd == DeviceSoundProbe.muted) return '勿扰模式开着';
+    return null;
+  }
 }
 
 class TtsEngine {
@@ -159,6 +233,91 @@ class TtsEngine {
     if (!_failures.isClosed) _failures.add(reason);
   }
 
+  // ── 「因为静音而跳过」单独一条流（**不是**失败流）────────────────
+  //
+  // ⚠️ **为什么分开**：跳过**不是失败** ⇒ ⇒ 混进失败流 ⇒ ⇒ 横幅会
+  // 用「语音没播出来」那套红字 ⇒ ⇒ 用户以为 TTS 坏了 ⇒ ⇒ 那是另一种
+  // 骗法（「失败长得像失败」）。
+  static final StreamController<String> _skips = StreamController.broadcast();
+
+  /// 「因为静音而跳过」的原因流（横幅订阅它）。
+  static Stream<String> get skips => _skips.stream;
+
+  /// 最近一次「因为静音跳过」的原因（横幅是后挂的 ⇒ 要能补上**已经
+  /// 发生**的那一次）。
+  static String? _lastSkip;
+  static String? get lastSkip => _lastSkip;
+
+  /// 清掉最近一次跳过（横幅被关掉后调用；也是单测的复位点）。
+  static void clearSkip() => _lastSkip = null;
+
+  static void _reportSkip(String reason) {
+    _lastSkip = reason;
+    if (!_skips.isClosed) _skips.add(reason);
+  }
+
+  /// **设备是不是「该安静了」** —— 三档，每档各自三态。
+  ///
+  /// ⚠️ **「查不到」按「不安静」处理** ⇒ ⇒ 宁可多合成一次，也绝不静默
+  /// 吞掉声音（探针失败若被当成安静 ⇒ ⇒ 用户什么都听不到还不知道
+  /// 为什么）。
+  Future<DeviceAudioState> deviceAudioState() async {
+    try {
+      final raw = await _channel.invokeMethod<Object?>('deviceSilentState');
+      // ⚠️ **形状不认识 ⇒ 当「查不到」**（不许拿半个读数当「该安静」）。
+      if (raw is! Map) return const DeviceAudioState.unknown();
+      return DeviceAudioState(
+        volume: _volumeFrom(raw['volume']),
+        ringer: _ringerFrom(raw['ringer']),
+        dnd: _dndFrom(raw['dnd']),
+      );
+    } catch (e) {
+      debugPrint('TtsEngine.deviceAudioState: $e');
+      return const DeviceAudioState.unknown();
+    }
+  }
+
+  /// **媒体音量那一档**的原生读数 ⇒ ⇒ 三态（认不出来的值 ⇒ 「查不到」）。
+  static DeviceSoundProbe _volumeFrom(Object? raw) {
+    switch (raw) {
+      case 'muted':
+        return DeviceSoundProbe.muted;
+      case 'unmuted':
+        return DeviceSoundProbe.unmuted;
+      default:
+        return DeviceSoundProbe.unknown;
+    }
+  }
+
+  /// **响铃档**的原生读数 ⇒ ⇒ 三态。
+  ///
+  /// ⚠️ **静音与振动都算「该安静」** ⇒ ⇒ 两档都映射成 muted ⇒ ⇒ 上层
+  /// 只需要一档判定，不必再细分 ⇒ ⇒ 但**档名保留在原生那一侧**（真机
+  /// logcat 能逐档认出「查到的是哪一档」）。
+  static DeviceSoundProbe _ringerFrom(Object? raw) {
+    switch (raw) {
+      case 'silent':
+      case 'vibrate':
+        return DeviceSoundProbe.muted;
+      case 'normal':
+        return DeviceSoundProbe.unmuted;
+      default:
+        return DeviceSoundProbe.unknown;
+    }
+  }
+
+  /// **勿扰档**的原生读数 ⇒ ⇒ 三态。
+  static DeviceSoundProbe _dndFrom(Object? raw) {
+    switch (raw) {
+      case 'on':
+        return DeviceSoundProbe.muted;
+      case 'off':
+        return DeviceSoundProbe.unmuted;
+      default:
+        return DeviceSoundProbe.unknown;
+    }
+  }
+
   /// **设置引擎类型** —— **落盘**（不是只改内存）。
   ///
   /// ⚠️ 以前这里只改字段 ⇒ ⇒ 设置页每个 widget 一个实例 ⇒ ⇒ 选完就丢
@@ -272,13 +431,42 @@ class TtsEngine {
   ///
   /// [allowFallback] 关掉回退是给设置页「试听」用的：试听要试的就是
   /// **当前配置的那个引擎**，回退会把「没配置」听成「配置生效了」。
+  ///
+  /// [force] **用户执意要听**（点了「仍要朗读」）⇒ ⇒ **绕过整个安静判定**
+  /// ⇒ ⇒ 替他省算力就是替他做主 ⇒ ⇒ 他点了就该出声。
   Future<TtsSpeakResult> speak(
     String text, {
     String lang = 'zh-CN',
     bool allowFallback = true,
     String? lobe,
+    bool reportSkip = true,
+    bool force = false,
   }) async {
     if (text.isEmpty) return const TtsSpeakResult.spoke();
+
+    // ⚠️ **设备「该安静」⇒ 一次合成都不发**（省 TTS 算力）——
+    // · 音量 0 那一档：合成出来的音频**没人听得见** ⇒ ⇒ 那一发纯属浪费；
+    // · 静音／振动／勿扰那两档：媒体流其实**还有声**，但用户说了「静音模
+    //   式也不需要 tts」⇒ ⇒ 那是**产品裁定**（尊重意图、少烧算力）。
+    //
+    // ⚠️ **「查不到」不跳**（那一档是 unknown）⇒ ⇒ 宁可多合成一次，也
+    // 绝不静默吞掉声音。
+    //
+    // ⚠️ **force** ⇒ ⇒ **绕过这一整个判定** ⇒ ⇒ 用户执意要听。
+    if (!force) {
+      final deviceAudio = await deviceAudioState();
+      final skipReason = deviceAudio.skipReason;
+      if (skipReason != null) {
+        debugPrint(
+          'TtsEngine.speak: $skipReason —— 已跳过朗读（省一次 TTS 算力）',
+        );
+        // ⚠️ **报不报由调用方决定** —— 自动朗读（每轮都会来一次）是
+        // **后台行为** ⇒ ⇒ 跳过是尊重用户意图 ⇒ ⇒ 静默；手动朗读／
+        // 试听是**用户明确要求出声** ⇒ ⇒ 必须说清「为什么没声」。
+        if (reportSkip) _reportSkip(skipReason);
+        return TtsSpeakResult.skippedMuted(skipReason);
+      }
+    }
 
     // ⚠️ **先读回持久化的引擎选择**（每一条腿都要）——
     //   ❶ 用户在设置页**选过**的那条腿必须真的被用（不读配置 ⇒ ⇒

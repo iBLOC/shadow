@@ -20,6 +20,14 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
                      android:maxSdkVersion="32"/>
+    <!-- 保存图片进系统相册（2026-11-17）——
+         ⚠️ **只给 API 28 及以下**：Android 10（API 29）起写 MediaStore
+         **不需要任何权限**（分区存储：应用写自己建的媒体条目免权限）
+         ⇒ ⇒ 新系统上这一条是多余的 ⇒ ⇒ 限到 28，免得让人以为「相册权限」；
+         Android 9 及以下那条老路才需要它（运行期申请 ⇒ 拿不到就**响亮报错**，
+         不假装保存成功）。 -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+                     android:maxSdkVersion="28"/>
     <!-- v2.5 — BLE provisioning of shadow-esp32 ("shadow-esp32 setup"
          peripheral advertising 12345678-0001... service). Android
          12+ requires runtime BLUETOOTH_SCAN/CONNECT permissions;
@@ -88,6 +96,23 @@
                 android:resource="@xml/accessibility_config" />
         </service>
 
+        <!-- FileProvider（2026-11-17）—— 「分享到微信」要把**缓存里的那个
+             文件**交给微信 ⇒ ⇒ Android 7+ 不许传 `file://`（会抛
+             FileUriExposedException）⇒ ⇒ 只能给内容 URI ⇒ ⇒ 只能由
+             FileProvider 发。
+             ⚠️ `grantUriPermissions=true` ＋ 分享 Intent 上的
+             `FLAG_GRANT_READ_URI_PERMISSION` ⇒ ⇒ 微信**只**能读这一个文件、
+             读不到 App 的其他私有目录。 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- 通知使用权服务：读取通知栏里的近期通知（感知模式的数据源）。
              ⚠️ 通知读取不是运行时权限，是「服务开关」——
              用户要在 系统设置 → 通知使用权 里逐应用授权（声明 ≠ 授予）。 -->
@@ -142,5 +167,10 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- 微信（2026-11-17）—— 「分享到微信」要**先看它在不在**
+             ⇒ ⇒ Android 11+ 有**包可见性**（查不到就是「没装」）⇒ ⇒
+             ⇒ 必须在这里**点名**它 ⇒ ⇒ 否则永远查不到 ⇒ ⇒ 永远回落
+             到系统分享面板（而界面会说「已分享到微信」⇒ ⇒ 界面在说谎）。 -->
+        <package android:name="com.tencent.mm"/>
     </queries>
 </manifest>

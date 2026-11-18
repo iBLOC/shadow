@@ -2,6 +2,7 @@ import { AguiDriver } from './driver';
 import type { AguiClient } from './client';
 import type { AguiToolCall } from './driver';
 import type { AguiContentPart, AguiMessage, AguiTool } from './types';
+import type { A2uiMessage } from '../a2uiProtocol';
 import type { ClientToolOutcome } from './toolOutcomeGate';
 
 /**
@@ -21,6 +22,12 @@ export interface ConversationTurnSink {
   onToolFailed(call: AguiToolCall, error: string): void;
   /** lobe 那边自己跑的工具结果（走 CUSTOM）。 */
   onToolResult(name: string, result: unknown): void;
+  /**
+   * **AG-UI 承载的那块 A2UI 面**（官方 `ACTIVITY_SNAPSHOT`）。
+   *
+   * ⚠️ 可选：没接就不画（但那等于「面静默消失」⇒ ⇒ 界面在说谎）。
+   */
+  onA2uiSurface?(ops: A2uiMessage[], messageId: string): void;
 }
 
 export interface ConversationTurnRequest {
@@ -38,6 +45,8 @@ export interface ConversationTurnResult {
   firstDeltaAt: number | null;
   /** 这一轮里被点名执行过的设备工具。 */
   toolCalls: { id: string; name: string; ok: boolean }[];
+  /** 这一轮里由 **AG-UI 承载**画出来的面（每条一格）。 */
+  surfaces: A2uiMessage[][];
 }
 
 /**
@@ -53,6 +62,7 @@ export async function runAguiTurn(
   opts?: { signal?: AbortSignal; maxContinuations?: number },
 ): Promise<ConversationTurnResult> {
   const toolCalls: { id: string; name: string; ok: boolean }[] = [];
+  const surfaces: A2uiMessage[][] = [];
   const driver = new AguiDriver({
     client,
     executeTool: async (call: AguiToolCall): Promise<ClientToolOutcome> => {
@@ -85,9 +95,14 @@ export async function runAguiTurn(
       case 'tool_result':
         sink.onToolResult(ev.name, ev.result);
         break;
+      case 'a2ui_surface':
+        // ⚠️ **面随这一轮的话走** —— 落在对话流里，不是另开一块面板。
+        surfaces.push(ev.ops);
+        sink.onA2uiSurface?.(ev.ops, ev.messageId);
+        break;
       default:
         break;
     }
   }
-  return { text, firstDeltaAt, toolCalls };
+  return { text, firstDeltaAt, toolCalls, surfaces };
 }

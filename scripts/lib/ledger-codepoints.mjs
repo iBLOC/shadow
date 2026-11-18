@@ -545,3 +545,88 @@ export function sameKeyMultiset(a, b) {
   for (const [k, n] of A) if (B.get(k) !== n) return false;
   return true;
 }
+/**
+ * **R10（圈码枚举必须指向那本账本里真实存在的条目）** —— 2026-11-17 实测入库。
+ *
+ * ## 为什么要有这条
+ * 本刀自己写坏过三处：圈码段落里那句「取 U+XXXX（父仓）／U+YYYY（移动端）／U+ZZZZ（端脑）」
+ * 里，**另外两本的值全是错的**（父仓那条写了「移动端 U+3783」，而那枚号是**兄弟另一刀**占的；
+ * 移动端那条写了「父仓 U+3791」，而**谁都没占 U+3791**）⇒ ⇒ 而 R2/R5 只查**本条自己**的
+ * 声明行 ⇒ ⇒ **枚举那串谁都不查** ⇒ ⇒ 三条条目**互相矛盾**、**引用悬空**，闸却**全绿**。
+ *
+ * ## 形状（刻意收窄）
+ *
+ * · 形状一：`U+XXXX（账本名）`（父仓／移动端／桌面端／端脑）
+ * · 形状二：`账本名 取 U+XXXX`
+ * ⇒ ⇒ 「**自己那条**」的声明（`本条占 U+3792（㞒）`）括号里是**字形**不是账本名 ⇒ ⇒ 天然不命中。
+ *
+ * ## 判定口径（避免误报历史叙述）
+ *
+ * · **权威枚举**＝那段文字里**自己那本的值等于本条目实际码位**的那一行 ⇒ ⇒ 只有它才受检。
+ *   （真账本里有一处「先取 U+356B（父仓）＋ U+356C（移动端）」讲的是**被废掉的第一次取号**，
+ *   它自己那条是 U+356D ⇒ ⇒ 没有权威枚举 ⇒ ⇒ 跳过 ⇒ ⇒ **不误伤历史叙述**。）
+ * · 权威枚举里**别的账本**的值 ⇒ ⇒ 必须在**那本账本**里被某条目占用 ⇒ ⇒ 否则红。
+ * · 不在本闸宇宙里的账本名（端脑那本在 telencephalon 仓）⇒ ⇒ **判不了 ⇒ 跳过**。
+ *
+ * @param {{name:string,text:string}[]} ledgers 三账本
+ */
+export const LEDGER_ENUM_PAIR = /U\+([0-9A-Fa-f]{4,6})\*{0,2}\s*[（(]([^（()）\s]{1,8})[）)]/g;
+export const LEDGER_ENUM_PAIR2 = /([^\s（(）]{2,8})\s*取\s*\*{0,2}U\+([0-9A-Fa-f]{4,6})/g;
+
+/** 一行里的「枚举」映射（账本名 → 码位）；同一名字对到两个号 ⇒ ⇒ 判为叙述 ⇒ 返回 null。 */
+export function enumerationMap(line, known) {
+  const m = new Map();
+  let bad = false;
+  let x;
+  LEDGER_ENUM_PAIR.lastIndex = 0;
+  while ((x = LEDGER_ENUM_PAIR.exec(line)) !== null) {
+    const cp = x[1].toUpperCase();
+    const name = x[2];
+    if (!known.has(name)) continue;
+    if (m.has(name) && m.get(name) !== cp) bad = true;
+    m.set(name, cp);
+  }
+  LEDGER_ENUM_PAIR2.lastIndex = 0;
+  while ((x = LEDGER_ENUM_PAIR2.exec(line)) !== null) {
+    const name = x[1];
+    const cp = x[2].toUpperCase();
+    if (!known.has(name)) continue;
+    if (m.has(name) && m.get(name) !== cp) bad = true;
+    m.set(name, cp);
+  }
+  return bad ? null : m;
+}
+
+/** R10 违规清单 —— 跨账本（要拿「那本账本」的占用表）。 */
+export function findEnumerationIssues(ledgers) {
+  const known = new Set(ledgers.map((l) => l.name));
+  const byLedger = new Map();
+  for (const l of ledgers) {
+    const set = new Set();
+    for (const e of extractEntries(l.text).entries) if (e.actual) set.add(e.actual);
+    byLedger.set(l.name, set);
+  }
+  const issues = [];
+  for (const l of ledgers) {
+    const lines = l.text.split(/\r?\n/);
+    const { entries } = extractEntries(l.text);
+    for (const e of entries) {
+      if (!e.actual) continue;
+      const endIdx = (entries.find((x) => x.line > e.line) || { line: lines.length + 1 }).line - 1;
+      let auth = null;
+      for (let i = e.line - 1; i < endIdx; i++) {
+        const m = enumerationMap(lines[i], known);
+        if (m && m.get(l.name) === e.actual) { auth = { map: m, line: i + 1 }; break; }
+      }
+      if (!auth) continue;
+      for (const [name, cp] of auth.map) {
+        if (name === l.name) continue;
+        if (!known.has(name)) continue;
+        if (!byLedger.get(name).has(cp)) {
+          issues.push({ ledger: l.name, line: e.line, claimLine: auth.line, name, cp, actual: e.actual });
+        }
+      }
+    }
+  }
+  return issues;
+}

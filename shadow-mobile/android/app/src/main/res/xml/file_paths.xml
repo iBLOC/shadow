@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider 放行的路径（2026-11-17）—— 「分享到微信」用。
+
+  ⚠️ **只放行缓存目录下的 `shared/` 这一段** ⇒ ⇒ 微信拿到的内容 URI
+  **只能**指向我们刚写的那一个分享文件 ⇒ ⇒ 碰不到 App 的其它私有目录
+  （数据库、密钥、端脑的数据目录……全都在放行范围之外）。
+
+  ⚠️ 路径**不要**写 `path="."`（那等于把整个缓存目录开了）⇒ ⇒ 目录
+  名字与 `MediaActionsBridge.SHARE_DIR` 必须一致。
+-->
+<paths>
+    <cache-path
+        name="shared"
+        path="shared/" />
+</paths>

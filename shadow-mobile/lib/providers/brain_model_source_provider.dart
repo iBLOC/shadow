@@ -803,6 +803,16 @@ class CapabilityDefaultsView {
   /// ⚠️ **空列表 = 这台大脑此刻没注册这类引擎**（不是「没有这个能力」）。
   final Map<String, List<String>> registered;
 
+  /// **端脑此刻服务的那几档**（能力词）。
+  ///
+  /// ⚠️ 「词表里有」与「端脑服务」是**两句话**：`video_gen`（第 10 档）在
+  /// 词表里，但端脑 → neuron 整条链**没有视频生成端点**⇒ ⇒ 客户端据此把
+  /// 那一档标成「此刻调不了」。
+  ///
+  /// ⚠️ **老端脑没这个字段** ⇒ ⇒ 空表 ⇒ ⇒ 客户端退回产品事实（见
+  /// [telencephalonUnservedTiers]）。
+  final List<String> served;
+
   /// **逐叶区的分档覆盖**（叶区 → 能力词 → 引擎 id）—— 端脑当前的那一份。
   ///
   /// ⚠️ 与 [defaults] 同一分工：**端脑是权威**，本地那份只是「开机重下发」
@@ -814,6 +824,7 @@ class CapabilityDefaultsView {
     this.defaults = const {},
     this.engineResolved = const [],
     this.registered = const {},
+    this.served = const [],
     this.lobeDefaults = const {},
   });
 
@@ -855,6 +866,14 @@ class CapabilityDefaultsView {
         registered['$key'] = ids;
       });
     }
+    // ⚠️ **served** —— 端脑说服务哪几档（「词表里有」≠「端脑服务」）。
+    final served = <String>[];
+    final rawServed = json['served'];
+    if (rawServed is List) {
+      for (final c in rawServed) {
+        if (c is String && c.trim().isNotEmpty) served.add(c.trim());
+      }
+    }
     // ⚠️ **lobe_defaults** —— 逐叶区分档覆盖（端脑权威那份）。
     final lobeDefaults = <String, Map<String, String>>{};
     final rawLobeDefaults = json['lobe_defaults'];
@@ -873,6 +892,7 @@ class CapabilityDefaultsView {
       defaults: defaults,
       engineResolved: engineResolved,
       registered: registered,
+      served: served,
       lobeDefaults: lobeDefaults,
     );
   }
@@ -1101,6 +1121,31 @@ const Set<String> catalogResolvedTiers = {'image_gen', 'asr', 'tts'};
 /// **必须一模一样**（两端纯模块同源，改一边就改另一边）。
 const Set<String> cloudOnlyUnionTiers = {'asr', 'tts'};
 
+/// **端脑整条链没有服务路径的那几档**（产品事实，不随端脑版本变）。
+///
+/// ⚠️ `video_gen`：**老**端脑没有视频门面（官方那套是**两步**：创建 ⇒
+/// 查询，不是一次 POST）⇒ ⇒ 老端脑那一档配了也调不通。
+///
+/// ⚠️⚠️ **新端脑（2026-11-17 起）自己有门面**（端脑代理官方那两步）⇒ ⇒
+/// 它的 `served` 里**有** `video_gen` ⇒ ⇒ **以端脑为准** ⇒ ⇒ 这一档
+/// 自动放行。
+///
+/// ⚠️ **只当兜底** —— 端脑若下发了 `served`（哪几档它真服务），以端脑
+/// 为准（那是单一真源）⇒ ⇒ 端脑加门面，这一档自动放行（**不需要改这里**）。
+///
+/// ⚠️ 与桌面端 `capabilityDefaults.ts` 的 `TELEENCEPHALON_UNSERVED_TIERS`
+/// **必须一模一样**（两端纯模块同源，改一边就改另一边）。
+const Set<String> telencephalonUnservedTiers = {'video_gen'};
+
+/// 端脑此刻服务这一档吗。
+///
+/// ⚠️ 判据的顺序：**端脑说的为准**（`served`）→ ⇒ 没有才退回产品事实
+/// （[telencephalonUnservedTiers]）⇒ ⇒ 老端脑不会让 `video_gen` 变成「可用」。
+bool isServedCapability(String cap, List<String>? served) {
+  if (served != null && served.isNotEmpty) return served.contains(cap);
+  return !telencephalonUnservedTiers.contains(cap);
+}
+
 /// 每档的**可选项** —— 端脑说哪几档按引擎 id 解析，就按哪套命名空间取。
 ///
 /// ⚠️⚠️ **目录面 ≠ 已注册面**（2026-11-09 实测的根因）：
@@ -1167,7 +1212,10 @@ Map<String, List<CapabilityCandidateOption>> capabilityOptionsByCapability(
 ///
 /// ⚠️ 只对**按引擎 id 解析**的档说「用不了」—— 那一档的 id 必须已注册
 /// （或者，对 [catalogResolvedTiers] 那几档，目录面里有 ⇒ 端脑也解析得到）。
-/// ⚠️ **不按引擎 id 解析的档不在这里说**（客户端没有依据判断 ⇒ ⇒ 不许编）。
+/// ⚠️ **不按引擎 id 解析的档不在这里说**（客户端没有依据判断 ⇒ ⇒ 不许编）
+/// —— **除非端脑明说它不服务那一档**（`served`，2026-11-16 加的
+/// `video_gen` 就是这一格：词表里有、端脑整条链没有服务路径 ⇒ ⇒ 这一格
+/// **有依据**）。
 List<({String capability, String modelId})> unusableCapabilityDefaults(
   Map<String, String> defaults,
   List<String> engineResolved,
@@ -1175,13 +1223,25 @@ List<({String capability, String modelId})> unusableCapabilityDefaults(
   /// 目录面里各档的 id（只用来给 [catalogResolvedTiers] 那几档放行 ——
   /// 端脑在那些档**也查云供应商模型表**，见 [catalogResolvedTiers]）。
   Map<String, List<String>> catalog = const {},
+  /// 端脑说服务哪几档（`served`）—— 「词表里有」≠「端脑服务」。
+  ///
+  /// ⚠️ **空/缺失 ＝ 老端脑没这个字段** ⇒ ⇒ 退回产品事实
+  /// （[telencephalonUnservedTiers]）。
+  List<String>? served,
 }) {
   final resolved = engineResolved.toSet();
   final out = <({String capability, String modelId})>[];
   defaults.forEach((cap, modelId) {
-    if (!resolved.contains(cap)) return;
     final id = modelId.trim();
     if (id.isEmpty) return;
+    // ⚠️ **端脑不服务这一档** ⇒ ⇒ 配了也跑不起来（不论它是不是按引擎 id
+    // 解析的档）⇒ ⇒ 要报出来（`video_gen` 那一档就是这一格：词表里有、
+    // 端脑整条链没有服务路径 ⇒ ⇒ 这一格**有依据**）。
+    if (!isServedCapability(cap, served)) {
+      out.add((capability: cap, modelId: id));
+      return;
+    }
+    if (!resolved.contains(cap)) return;
     final ids = registered[cap] ?? const <String>[];
     if (ids.contains(id)) return;
     // ⚠️ **别把「能用」报成「用不了」**：image_gen 那一档的云模型 id

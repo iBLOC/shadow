@@ -3,10 +3,23 @@ import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 const mockSpeech = vi.fn();
 const mockClearErrorDialog = vi.fn();
 
+// ⚠️ **设备静音探针的替身** —— 真实现问 Rust（`device_audio_state`）
+// ⇒ ⇒ 这里替身可改 ⇒ ⇒ 「静音时零合成请求」那一格才钉得住。
+// ⚠️ 默认值是「**查不到**」（不是「有声音」）⇒ ⇒ 网页版那一格的行为
+// 就是这样 ⇒ ⇒ 既有判据不用改口径。
+const mockProbeDeviceAudio = vi.hoisted(() =>
+  vi.fn(async () => ({ muted: false, known: false })),
+);
+
 vi.mock('../openaiClient', () => ({
   openaiClient: {
     speech: (...args: unknown[]) => mockSpeech(...args),
   },
+}));
+
+vi.mock('../deviceAudio', () => ({
+  probeDeviceAudio: (...args: unknown[]) => mockProbeDeviceAudio(...args),
+  DEVICE_AUDIO_UNKNOWN: { muted: false, known: false },
 }));
 
 vi.mock('../../stores/errorDialogStore', () => ({
@@ -77,6 +90,8 @@ beforeEach(() => {
   (globalThis as any).Audio = MockAudio;
   (globalThis as any).window.Audio = MockAudio;
   mockSpeech.mockReset();
+  mockProbeDeviceAudio.mockReset();
+  mockProbeDeviceAudio.mockResolvedValue({ muted: false, known: false });
   localStorage.clear();
 });
 
@@ -166,7 +181,13 @@ describe('ttsService — Web Speech fallback', () => {
     mockSpeech.mockRejectedValue(new Error(`HTTP 400: ${structErrBody}`));
 
     const { ttsService } = await import('../tts');
-    await expect(ttsService.speak('hello')).resolves.toBeUndefined();
+    // ⚠️ **口径变了**（2026-11-16）：`speak` 现在回 `TtsSpeakResult`
+    // ⇒ ⇒ 这一格从「回 undefined」改成「回**没出声但不是静音跳过**」
+    // （Web Speech 不可用 ⇒ 兜底腿也没了 ⇒ 既没出声，也不是静音跳过）。
+    await expect(ttsService.speak('hello')).resolves.toEqual({
+      spoke: false,
+      skippedMuted: false,
+    });
   });
 
   it('respects user-disabled preference', async () => {
@@ -188,6 +209,73 @@ describe('ttsService — Web Speech fallback', () => {
     await ttsService.speak('repeat me');
 
     expect(mockSpeech).toHaveBeenCalledOnce();
+  });
+});
+
+describe('ttsService — 设备静音 ⇒ 不烧 TTS 算力', () => {
+  it('静音 ⇒ **一次合成请求都不发**（省算力）且结果说清是「静音跳过」', async () => {
+    mockProbeDeviceAudio.mockResolvedValue({ muted: true, known: true });
+    mockSpeech.mockResolvedValue(new Blob(['mp3-data'], { type: 'audio/mpeg' }));
+
+    vi.resetModules();
+    const { ttsService } = await import('../tts');
+    const result = await ttsService.speak('静音这轮');
+
+    // ⚠️ **零请求**才是这一刀的目的（省 TTS 算力）—— 不是「少放一次」。
+    expect(mockSpeech).not.toHaveBeenCalled();
+    expect(mockSpeechSynthesis.speak).not.toHaveBeenCalled();
+    expect(result).toEqual({ spoke: false, skippedMuted: true });
+  });
+
+  it('「查不到」⇒ **照常合成**（宁可多烧一次，也绝不静默吞掉声音）', async () => {
+    mockProbeDeviceAudio.mockResolvedValue({ muted: false, known: false });
+    mockSpeech.mockResolvedValue(new Blob(['mp3-data'], { type: 'audio/mpeg' }));
+
+    vi.resetModules();
+    const { ttsService } = await import('../tts');
+    const result = await ttsService.speak('查不到这轮');
+
+    expect(mockSpeech).toHaveBeenCalledOnce();
+    expect(result.skippedMuted).toBe(false);
+  });
+
+  it('有声音 ⇒ 照常合成（静音跳过不许变成常态）', async () => {
+    mockProbeDeviceAudio.mockResolvedValue({ muted: false, known: true });
+    mockSpeech.mockResolvedValue(new Blob(['mp3-data'], { type: 'audio/mpeg' }));
+
+    vi.resetModules();
+    const { ttsService } = await import('../tts');
+    const result = await ttsService.speak('有声音这轮');
+
+    expect(mockSpeech).toHaveBeenCalledOnce();
+    expect(result.skippedMuted).toBe(false);
+  });
+
+  it('「仍要朗读」（force）⇒ **照常合成**（用户执意要听 ⇒ 别替他省这一次）', async () => {
+    mockProbeDeviceAudio.mockResolvedValue({ muted: true, known: true });
+    mockSpeech.mockResolvedValue(new Blob(['mp3-data'], { type: 'audio/mpeg' }));
+
+    vi.resetModules();
+    const { ttsService } = await import('../tts');
+    const result = await ttsService.speak('还是要听', { force: true });
+
+    // ⚠️ **force 必须真的绕过探针** ⇒ ⇒ 不是「查到了但没跳」⇒ ⇒ 探针
+    // 压根不该被问。
+    expect(mockProbeDeviceAudio).not.toHaveBeenCalled();
+    expect(mockSpeech).toHaveBeenCalledOnce();
+    expect(result.skippedMuted).toBe(false);
+  });
+
+  it('静音 ⇒ **连 Web Speech 兜底都不走**（没人听得见 ⇒ 一律不发声）', async () => {
+    mockProbeDeviceAudio.mockResolvedValue({ muted: true, known: true });
+    mockSpeech.mockRejectedValue(new Error('HTTP 404: Not Found'));
+
+    vi.resetModules();
+    const { ttsService } = await import('../tts');
+    await ttsService.speak('静音兜底这轮');
+
+    expect(mockSpeech).not.toHaveBeenCalled();
+    expect(mockSpeechSynthesis.speak).not.toHaveBeenCalled();
   });
 });
 

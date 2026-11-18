@@ -387,6 +387,18 @@ export interface CapabilityDefaultsView {
    * ⚠️ **空列表 = 这台大脑此刻没注册这类引擎**（不是「没有这个能力」）。
    */
   registered?: Record<string, string[]>;
+
+  /**
+   * **端脑此刻服务的那几档**（能力词）。
+   *
+   * ⚠️ 「词表里有」与「端脑服务」是**两句话**：`video_gen`（第 10 档）在
+   * 词表里，但端脑 → neuron 整条链**没有视频生成端点** ⇒ ⇒ 客户端据此把
+   * 那一档标成「此刻用不了」。
+   *
+   * ⚠️ **老端脑没这个字段** ⇒ ⇒ 客户端退回产品事实（见
+   * `capabilityDefaults.ts` 的 [TELEENCEPHALON_UNSERVED_TIERS]）。
+   */
+  served?: string[];
 }
 
 /**
@@ -522,6 +534,13 @@ export interface ModelInfo {
   is_default: boolean;
   /** ⚠️ 首词 = **有效能力**（端脑五档判据算出的），其余是上游原词。 */
   capabilities: string[];
+  /**
+   * **输入模态**（`text` / `image` / `audio` / `video` / `pdf`）—— 端脑读面
+   * 算出来的（上游 → 出厂清单 → 兜底 `text`）。
+   */
+  input_modalities?: string[];
+  /** 这份模态**从哪来**（`upstream` / `catalog` / `default`）。 */
+  input_modalities_source?: string;
   supports_vision: boolean;
   supports_function_calling: boolean;
   /**
@@ -800,6 +819,53 @@ export interface GenerateImageDatum {
 export interface GenerateImageResponse {
   created: number;
   data: GenerateImageDatum[];
+}
+
+/**
+ * **视频生成请求** —— 与端脑门面（`POST /api/telencephalon/videos/generations`）同形。
+ *
+ * ⚠️ 官方那套是**两步**（创建 ⇒ 查询）⇒ ⇒ 端脑也是两张路由 ⇒ ⇒ 这里也是
+ * 两个方法（`generateVideo` / `queryVideo`）⇒ ⇒ 客户端轮询端脑、端脑轮询
+ * 供应商（**端脑不落状态** ⇒ ⇒ 零新增存储）。
+ */
+export interface GenerateVideoRequest {
+  /** 提示词（必填）。 */
+  prompt: string;
+  /** 模型 id 覆盖；不给 ⇒ `video_gen` 分档默认。 */
+  model?: string;
+  /** 首帧图（公网 URL / data URI）。 */
+  first_frame_image_url?: string;
+  /** 尾帧图。 */
+  last_frame_image_url?: string;
+  /** 480P / 768P / 2K（缺省 768P —— 四个官方模型都支持它）。 */
+  resolution?: string;
+  /** 4..=15 秒（缺省 5）。 */
+  duration?: number;
+  /** adaptive / 16:9 / …（**文生视频不许 adaptive**）。 */
+  ratio?: string;
+}
+
+/** 创建成功（上游只给 task_id ⇒ ⇒ 状态是 `queued`）。 */
+export interface GenerateVideoResponse {
+  task_id: string;
+  status: string;
+  /** 端脑**实际用的**模型 id（查询时要拿它回去定位供应商）。 */
+  model: string;
+}
+
+/** 一个视频任务的当前状态。 */
+export interface VideoTaskResponse {
+  task_id: string;
+  /** queued / running / succeeded / failed / cancelled（上游的枚举）。 */
+  status: string;
+  model?: string;
+  /** 成功时的产物链接（**有时效** ⇒ ⇒ 要及时下载或转存）。 */
+  url?: string;
+  /** 失败时的上游原话。 */
+  error?: string;
+  resolution?: string;
+  duration?: number;
+  ratio?: string;
 }
 
 /**
@@ -1562,6 +1628,43 @@ export class TelencephalonClient {
           : {}),
       }),
     });
+  }
+
+  /**
+   * **视频生成**（`video_gen` 档的门面）—— 云供应商的模型走**端脑代理**
+   * （key 不出大脑）；`model` 不给就用 `video_gen` 分档默认。
+   *
+   * ⚠️ 官方那套是**两步** ⇒ ⇒ 这里只是**第一步**（创建）⇒ ⇒ 产物要再调
+   * `queryVideo` 取。
+   *
+   * ⚠️ 门是 **admin**（与 voice / 出图同一把尺 ⇒ `request()` 递的那把）。
+   */
+  async generateVideo(req: GenerateVideoRequest): Promise<GenerateVideoResponse> {
+    return this.request<GenerateVideoResponse>('/api/telencephalon/videos/generations', {
+      method: 'POST',
+      body: JSON.stringify({
+        prompt: req.prompt,
+        ...(req.model ? { model: req.model } : {}),
+        ...(req.first_frame_image_url ? { first_frame_image_url: req.first_frame_image_url } : {}),
+        ...(req.last_frame_image_url ? { last_frame_image_url: req.last_frame_image_url } : {}),
+        ...(req.resolution ? { resolution: req.resolution } : {}),
+        ...(req.duration != null ? { duration: req.duration } : {}),
+        ...(req.ratio ? { ratio: req.ratio } : {}),
+      }),
+    });
+  }
+
+  /**
+   * **查回一个视频任务**（第二步）。
+   *
+   * ⚠️ **`model` 是必带的** —— 端脑**不落状态** ⇒ ⇒ 要靠它找回「哪个供应
+   * 商」⇒ ⇒ 少了它端脑会**响亮报错**（它不会瞎问一家 ⇒ ⇒ 那会问到别人
+   * 的任务上去）。
+   */
+  async queryVideo(taskId: string, model: string): Promise<VideoTaskResponse> {
+    return this.request<VideoTaskResponse>(
+      `/api/telencephalon/videos/generations/${encodeURIComponent(taskId)}?model=${encodeURIComponent(model)}`,
+    );
   }
 
   /**

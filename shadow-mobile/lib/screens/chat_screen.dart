@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import '../generated/l10n/app_localizations.dart';
 import '../asr_engine.dart';
 import '../providers/chat_provider.dart';
-import '../providers/genui_provider.dart';
 import '../providers/wake_word_provider.dart';
 import '../services/wake_word_service.dart';
 import '../providers/conversation_mode_provider.dart';
@@ -17,7 +16,6 @@ import '../widgets/continue_on_desktop_dialog.dart';
 import '../widgets/chat/local_chat_view.dart';
 import '../widgets/chat/in_app_camera_overlay.dart';
 import '../services/in_app_camera_service.dart';
-import '../widgets/chat/agent2ui_panel.dart';
 import '../widgets/chat/mode_switcher.dart';
 import '../widgets/chat/conversation_mode_switcher.dart';
 import '../widgets/responsive.dart';
@@ -96,7 +94,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final chatState = ref.watch(chatProvider);
     final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final useAgent2UI = ref.watch(useAgent2UIModeProvider);
     // 聊天背景图 —— 设置里选的图；null = 用默认渐变底。
     final bgPath = ref.watch(themeAppearanceProvider).chatBackgroundPath;
 
@@ -129,10 +126,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // 「本地模型没准备好就弹下载框」那一段**整块删掉**了 ——
     // 移动端本地 LiteRT 已下线，模型不再由客户端下载，
     // 也没有「模型不存在」这个状态可言。
-    final isAgent2UI = useAgent2UI;
+    //
+    // ⚠️ **A2UI 的「独立面板」这一格也删掉了（2026-11-18）** ——
+    // 用户诉求逐字：「现在移动端 对话也没按和agent2ui页面还是两个页面
+    // 有没有一种可能合并为一个页面使用a2ui 传输协议使用ag-ui」
+    // ⇒ ⇒ 那块面板走的是 **A2A**（`/a2a` ＋ 自己的输入条 ＋ 自己的连接状态栏
+    // ＋ **不记会话**）⇒ ⇒ 它让用户看到的是「对话」与「另一个界面」两块
+    // ⇒ ⇒ **同一个页面里住着两条协议**。
+    //
+    // ⇒ ⇒ 现在**只有一条**：AG-UI 承载的 A2UI 面，**内联在对话消息里**
+    // （`local_chat_view.dart` 的 `A2uiSurfacesBlock`）⇒ ⇒ 一个页面。
+    // ⇒ ⇒ 能力**零损失**：面板能给的只有 `tasks`／`agents` 两个视图，而端脑
+    // 在 AG-UI 路里对**同样两个视图**用**同一套** `a2ui::render_view` 产出
+    // （`telencephalon/src/api/shadow/agui.rs`），且**关键词兜底**同样生效
+    // （「我的任务」⇒ tasks）⇒ ⇒ 用户在**对话框**里说一句就出面
+    // ⇒ ⇒ 而且**这一条还记会话**（面板那条不记）。
 
-    // ⚠️ **同页共存** ⇒ 这一页**永远是对话页** ⇒ 标题/图标不再跟着 A2UI 变
-    //（A2UI 有自己的面板头 ⇒ 不必借整页的标题说「你现在在 Agent2UI」）。
+    // ⚠️ **这一页**永远是对话页** ⇒ 标题/图标不跟着任何形态变
+    //（A2UI 的面**内联在消息里** ⇒ 它没有自己的页头 ⇒ 更不必借整页的标题说事）。
     String getModeTitle() => l10n.appTitle;
 
     IconData getModeIcon() => Icons.chat_bubble_outline;
@@ -181,21 +192,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               tooltip: l10n.continueDesktopTitle,
             ),
           const ModeSwitcher(),
-          // Agent2UI（A2A / GenUI）的入口。
-          //
-          // 以前唯一的入口是「本地模型没装好 → 弹下载框 → Use Agent2UI」
-          // 那个逃生口 —— 下载框下线之后就没有入口了，所以补一个常驻按钮，
-          // 不然这个形态会变成**只能进不能出**的死功能。
-          //
-          // ⚠️ **同页共存** ⇒ 它是「上面多一块面板」，**不是**「换一页」
-          // ⇒ ⇒ 这个按钮**常驻**且是**开关**（实心＝面板在）
-          // ⇒ ⇒ 用户随时能收起来，对话一秒都不耽误。
-          IconButton(
-            icon: Icon(isAgent2UI ? Icons.widgets : Icons.widgets_outlined),
-            onPressed: () =>
-                ref.read(useAgent2UIModeProvider.notifier).state = !isAgent2UI,
-            tooltip: l10n.agent2UI,
-          ),
+          // ⚠️ **这里**曾经**有一个 `widgets` 常驻按钮**（开/关那块 A2UI 面板）
+          // ⇒ ⇒ 2026-11-18 摘掉了（理由见上面那段注释）⇒ ⇒ 现在**只有**
+          // 「在对话里说一句话 ⇒ 那一句话下面长出界面」这一种形态
+          // ⇒ ⇒ AppBar 上**不再有第二个界面**的入口。
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () => _showSettings(context),
@@ -237,18 +237,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 children: [
                   // 对话形态（对话 / 语音 / 直播 / 客服）是对话的方式，不是并列 tab
                   const ConversationModeSwitcher(),
-                  // ⚠️ **同页共存**：A2UI 面板在**上面**，**对话永远在下面**
-                  // ⇒ ⇒ 打开面板**不会**把对话换掉（以前是二选一 ⇒ 对话整块消失）。
-                  // ⚠️ 高度封顶 42%（并夹在 180–420dp 之间）
-                  // ⇒ ⇒ 小屏也不会把对话挤没、大屏也不会让面板吃掉整页。
-                  if (isAgent2UI)
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: (MediaQuery.sizeOf(context).height * 0.42)
-                            .clamp(180.0, 420.0),
-                      ),
-                      child: const Agent2UIPanel(),
-                    ),
+                  // ⚠️ **这里**曾经**长着 A2UI 的独立面板**（封顶屏高 42%）
+                  // ⇒ ⇒ 2026-11-18 摘掉了 ⇒ ⇒ **A2UI 的面不再有「面板」这一形态**
+                  // ⇒ ⇒ 它只以「**内联在对话消息里**」的样子出现
+                  // ⇒ ⇒ ⇒ **这一页从头到尾只有一个页面**。
                   Expanded(
                     child: LocalChatView(
                       chatState: chatState,

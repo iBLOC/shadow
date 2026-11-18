@@ -3,8 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shadow_mobile/services/genui/gen_ui_agent_service.dart';
-import 'package:shadow_mobile/services/genui/shadow_catalog.dart';
+import 'package:shadow_mobile/services/a2ui/a2ui_agent_service.dart';
+
+import '../support/a2ui_fixture.dart';
 
 /// **界面文案随用户的语言走** —— 端脑在 `Accept-Language` 里挑语言。
 ///
@@ -29,8 +30,8 @@ void main() {
     // （`TestWidgetsFlutterBinding` 的 `_MockHttpOverrides`）⇒ 必须放开。
     HttpOverrides.global = null;
 
-    // 回放端脑的**真实** SSE 字节 ⇒ 客户端会真的把它消费掉。
-    final sse = _readSseFixture();
+    // 回放端脑那种 **v1.0** 的 SSE 字节 ⇒ 客户端会真的把它消费掉。
+    final sse = conformantTasksSse();
 
     final arrivals = <Completer<void>>[];
     final seenLocales = <String?>[];
@@ -52,36 +53,32 @@ void main() {
 
     // 模拟「用户换语言」：先是英文，后来改成中文。
     var locale = 'en';
-    final service = GenUIAgentService(
+    final service = A2uiAgentService(
       serverUrl: 'http://${server.address.address}:${server.port}/a2a',
-      catalog: ShadowCatalog.create(),
+      shadowKeyProvider: () => null,
       localeProvider: () => locale,
     );
-
-    // 「客户端已消费完这份响应」的信号 —— 每份响应都会带来一次
-    // `beginRendering` ⇒ 一次 `SurfaceAdded` ⇒ 一次 surface 列表更新。
-    var surfacesSeen = 0;
-    // ⚠️ **只把非空的更新算作「端脑这次画了界面」** ——
-    // 空列表 = 「这一轮开始了，上一轮被清掉」（`sendMessage` 会先清空）
-    // ⇒ 拿它当「响应消费完了」会**提前 dispose** ⇒ 在飞的流报错 ⇒ 偶发红。
-    // （判据见 `a2ui_surface_reset_test.dart`）
-    final subscription = service.surfaceIdsStream.listen((ids) {
-      if (ids.isEmpty) return;
-      surfacesSeen++;
-    });
 
     final first = Completer<void>();
     arrivals.add(first);
     service.sendMessage('我的任务');
     await first.future.timeout(const Duration(seconds: 10));
-    await _waitUntil(() => surfacesSeen >= 1);
+    // ⚠️ **这一轮的响应真的消费完了** —— 信号是「连接状态回到已连接」
+    //    （服务端处理完这一轮就会把它置上）⇒ ⇒ 不拿「列表变了」当信号
+    //    （**空列表** = 「这一轮开始了」，**非空列表** = 「端脑真的画了界面」
+    //    —— 两义，见 `a2ui_surface_reset_test.dart`）。
+    await _waitUntil(
+      () => service.connectionStatus == ConnectionStatus.connected,
+    );
 
     locale = 'zh';
     final second = Completer<void>();
     arrivals.add(second);
     service.sendMessage('我的任务');
     await second.future.timeout(const Duration(seconds: 10));
-    await _waitUntil(() => surfacesSeen >= 2);
+    await _waitUntil(
+      () => service.connectionStatus == ConnectionStatus.connected,
+    );
 
     expect(seenLocales, hasLength(2), reason: '两次请求都应当到达服务端');
     expect(
@@ -95,8 +92,7 @@ void main() {
       reason: '语言必须是**请求时现读** —— 构造时取值 ⇒ 用户换语言后界面仍是旧语言',
     );
 
-    await subscription.cancel();
-    service.dispose();
+    await service.dispose();
     await server.close(force: true);
   });
 }
@@ -108,24 +104,4 @@ Future<void> _waitUntil(bool Function() predicate) async {
     await Future<void>.delayed(const Duration(milliseconds: 50));
   }
   throw StateError('等待超时（10 秒）');
-}
-
-/// 读端脑导出的 SSE fixture。
-String _readSseFixture() {
-  const relative = 'fixtures/a2ui/tasks_sse.txt';
-  final candidates = <File>[
-    File('../$relative'),
-    File('../../$relative'),
-    File(relative),
-  ];
-  for (final candidate in candidates) {
-    if (candidate.existsSync()) {
-      return candidate.readAsStringSync();
-    }
-  }
-  throw StateError(
-    '找不到 SSE fixture。试过：'
-    '${candidates.map((f) => f.path).join(' | ')}'
-    '（当前工作目录 ${Directory.current.path}）',
-  );
 }

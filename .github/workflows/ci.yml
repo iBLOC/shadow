@@ -289,6 +289,35 @@ jobs:
       - name: Mobile a11y contract check
         run: node scripts/run-gate-once.mjs --strict scripts/check-mobile-a11y-contract.mjs
 
+      # 移动端 A2UI 承载闸 —— 「**一个页面 ＋ 一条承载**」这句话的守门人。
+      # ⚠️ 2026-11-18：移动端摘掉了那块走 **A2A** 的**独立面板** ⇒ ⇒ 现在
+      # A2UI 的面**只有一条承载**：**AG-UI**（官方 `ACTIVITY_SNAPSHOT`）⇒ ⇒
+      # 面**内联在对话消息里** ⇒ ⇒ 同一个页面里**不再住着两条协议**。
+      # ⚠️ 判据**单仓可判**（只读移动端自己）⇒ ⇒ **不依赖兄弟仓** ⇒ ⇒
+      # **能进 CI**（与 `check-agui-a2ui-wire.mjs` 分工：那边钉端脑侧与 wire
+      # 形状、**跨仓不进 CI**；这边钉客户端这一侧、**CI 里有分母**）。
+      # ⚠️ 八条里五条是**负控**（独立面板〔**两代命名**〕／面板开关／面板输入条／
+      # 面板那族类名／内联面另说会话都不许复活）⇒ ⇒ 摘掉的东西**不许悄悄长回来**。
+      - name: Mobile single A2UI carrier check
+        run: node scripts/run-gate-once.mjs --strict scripts/check-mobile-single-a2ui-carrier.mjs
+
+      - name: Mobile single A2UI carrier check (self-test)
+        run: node scripts/check-mobile-single-a2ui-carrier.mjs --self-test
+
+      # 桌面端 A2UI 承载闸 —— 「**一个页面 ＋ 一条承载**」这句话的守门人（桌面端那一半）。
+      # ⚠️ 2026-11-18：桌面端摘掉了那块走 **A2A** 的**独立面板**（承移动端那一刀，
+      # 台账 U+37B3 条 ⑦❷ ⇒ 桌面端另起一刀）⇒ ⇒ A2UI 的面**只有一条承载**：
+      # **AG-UI**（官方 `ACTIVITY_SNAPSHOT`）内联在对话消息里。
+      # ⚠️ 判据**单仓可判**（只读桌面端自己）⇒ ⇒ 与移动端那道同形状 ⇒ ⇒ **能进 CI**；
+      # 与 `check-agui-a2ui-wire.mjs` 分工同移动端那道（那边跨仓不进 CI，这边有分母）。
+      # ⚠️ 八条里五条是**负控**（面板文件〔现名＋复活别名〕／开关 provider／开关按钮族／
+      # 面板族标识符／内联面另说会话都不许复活）⇒ ⇒ 摘掉的东西**不许悄悄长回来**。
+      - name: Desktop single A2UI carrier check
+        run: node scripts/run-gate-once.mjs --strict scripts/check-desktop-single-a2ui-carrier.mjs
+
+      - name: Desktop single A2UI carrier check (self-test)
+        run: node scripts/check-desktop-single-a2ui-carrier.mjs --self-test
+
       # 两端供应商面**逐项对齐**闸 —— 「供应商都是大脑提供的」这句话的守门人。
       # ⚠️ 桌面端与移动端打的是**同一张端脑表** ⇒ ⇒ 两端必须发**同一组字段**、
       # 打**同一组端点** ⇒ ⇒ 而「少发一个字段」的后果是**静默降级**：大脑对

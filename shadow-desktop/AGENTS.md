@@ -1,3 +1,21 @@
+**Updated:** 2026-11-18 (㟃 **「桌面端：对话与 A2UI 合成**一个页面** —— 摘掉那块走 A2A 的独立面板，A2UI 只剩 AG-UI 一条承载；摘的是重复的承载，不是能力」** —— 承 父仓 U+37B3 条（移动端单页那一刀）⑦❷＋ 用户「开始桌面端改造吧」，本条记**桌面端这一侧落了什么**、**真变异**、**读数**，以及**仍然欠着的**；父仓那条另落：U+37C2（㟂）)
+
+> 信封：epoch=2026-11-18 | authority=measured | scope=project | source=用户指令（「开始桌面端改造吧」）＋ 承 父仓 U+37B3 条 ⑦❷ ｜ 改动：桌面端（**删** src/components/chat/A2uiPanel.tsx〔删除前工作树字节快照存父仓 .local/a2ui-panel-removed-backup/，sha256 7D7BAEABA63D48B6 —— 本文件有兄弟会话未提交的 v1.0 升级 ⇒ 快照不丢在飞面〕＋ **删** src/components/chat/__tests__/a2ui.abort.test.tsx〔纯面板套件；abort 机制有 src/lib/__tests__/abort.test.ts 独立覆盖〕＋ **改** src/pages/ConversationPage.tsx〔摘面板 import ＋ showA2ui ＋ toggle 行＋按钮 ＋ 条件渲染；**内联承载（A2uiOpsSurface ＋ onA2uiSurface ＋ msg.a2ui_surface）一字不动**〕＋ **改** src/components/chat/__tests__/a2ui.test.tsx〔八条面板挂载用例删；两条「空/非空面可判」**改挂共享渲染器保留**＋协议纯文本保留〕＋ **改** src/components/chat/__tests__/a2ui.live.test.tsx〔面板挂载活体条删；agents 视图与 401 两条客户端级直调**保留**〕＋ **改** src/lib/abort.ts〔头注释摘面板 bullet，机制保留〕＋ **改** src/i18n/zh-CN.json ＋ en-US.json〔删 surface.a2ui ＋ surface.agents 两把面板专属死键〕）＋ 父仓（**新** scripts/check-desktop-single-a2ui-carrier.mjs ＋ **改** ci.yml〔desktop-build 接两步〕＋ **改** scripts/check-a2ui-session-identity.mjs〔桌面腿退场〕＋ **新** docs/superpowers/architecture/2026-11-18-desktop-single-page-a2ui-agui.md ＋ 本条——父仓那条另落：U+37C2）｜ 读数：新闸 **8/8**（自检 **17/17**）＋ 五道真文件真变异（各恰好面板族红 ＋ 还原 sha256 逐字一致）＋ 会话身份闸 **0 红**（自检 **10/10**）＋ 移动端闸 **8/8**（不回归）＋ wire 闸 **8/8**（a2uiClient.ts 保留 ⇒ W7 成立）＋ 桌面 tsc --noEmit **0 error** ＋ eslint 触及 5 文件 **0** ＋ 全量 vitest **1790 过 / 1 红 / 24 跳**（1 红＝**存量**跨端措辞漂移「端脑…vs 大脑…」，零命中本刀） | status=active | supersedes=none
+
+① **✅ 桌面端的三条承载只剩一条** —— ❶ AG-UI 内联（面画在它被点名的那句话下面，**记会话**）＝**唯一承载**；❷ 独立 A2A 面板（顶部另一块、自带视图切换、**不记会话**：每次请求现造 messageId）＝**本刀摘除**；❸ 客户端工具画的内联面（`show_a2ui_surface` 取数走 A2A）＝保留（与移动端同一笔债：端脑给工具结果挂 `a2ui_operations` 是端脑侧下一刀）⇒ ⇒ `a2uiClient.ts` 因此保留 ⇒ wire 闸 W7「桌面 /a2a 仍在」继续成立。
+
+② **✅ 能力零损失（与移动端同构的三条）** —— 面板只有 tasks/agents 两个视图；端脑 AG-UI 路用同一套 `a2ui::render_view` 产出同样两个视图（wire 闸 W6 钉）；关键词兜底生效（说「我的任务」就出面）⇒ ⇒ 内联那条**还记会话** ⇒ ⇒ 摘的是重复，净收益。
+
+③ **✅ 新闸八条（父仓 scripts/check-desktop-single-a2ui-carrier.mjs）** —— **五条负控**（M1 对话页不许挂面板／M2 面板文件不许在〔现名＋复活别名 a2ui_panel.tsx／Agent2UIPanel.tsx〕／M3 面板模式 provider 零命中／M4 开关按钮族全仓零命中／M8 面板族标识符跨全仓 .ts/.tsx 零命中）＋ **三条正控**（M5 AG-UI 内联三跳／M6 `AGUI_KNOWN_EVENT_TYPES` 块内认得 ACTIVITY_SNAPSHOT〔块判定不是裸词〕／M7 内联面不另说会话身份）⇒ ⇒ 负控扫源跳 `.` 开头目录 ⇒ `.mimosa` hook-state 基线不进判读面（实测：grep 看得见、闸看不见）。
+
+④ **✅ 真文件上的真变异（五道，各恰好面板族红）** —— ❶ 真 ConversationPage 加回面板 import ⇒ **M1＋M8**；❷ 从快照恢复面板文件本体 ⇒ **M2＋M8×2**；❸ 真 types.ts 块内删 ACTIVITY_SNAPSHOT ⇒ **恰好 M6**；❹ 真 a2uiActivity.ts 字面量改名 ⇒ **恰好 M5**；❺ 真 A2uiToolSurface.tsx 塞面板族标识符 ⇒ **恰好 M8** ⇒ ⇒ 五次还原 sha256 逐字一致（8771EB2C…／AC7E02D1…／67A2288C…／E8023649…）⇒ 闸面回 **8/8**。⚠️ 变异前闸对着「面板还在」的真树跑过 ⇒ **4/8 红** ⇒ 「闸有牙」先于摘面板成立。
+
+⑤ **⚠️ 自曝一处** —— 大文件的字节级搬运（快照＋真变异还原）走「Read→手工转写→Write」**连坏三次**（两次写出残缺内容＋cp 被 Mimosa 拦）⇒ 最终 `node copyFileSync`（sha256 两侧一致）才作数 ⇒ ⇒ **大文件搬运一律走 node，不走手工转写**（与父仓 U+37B8 条 ⑥「限行读＋整文件写回」同族）。
+
+⑥ **⚠️ 仍然欠着的** —— ❶ **真桌面那一格未验**（测试级＋闸级 ⇒ 不许说「桌面真机已验证」）；❷ **活体 DOM 证据随面板退场**（原 live「面板把活的字节画成 DOM」删了 ⇒ 内联承载的活体画格欠着）；❸ 客户端工具取数归位（端脑侧下一刀，两端共用）；❹ **未提交**（用户未要求；共享工作树兄弟在飞面大）⇒ ⇒ 圈码闸的**索引面／提交树面**那 8 条红是**存量**（别人的枚举引用了兄弟尚未落库的桌面端码位）⇒ ⇒ **工作树面零违规**。
+
+⑦ **⚠ 圈码：本条占 U+37C3（㟃）** —— 官方口径（--next：桌面端候选 U+37C2 起）＋ 逐字扫 **28 本** AGENTS.md（全 iBLOC 树，工作树面）⇒ **U+37C3 全局零命中**、高于桌面水位（U+37C1）＋ 与父仓那枚（U+37C2）互不相同 ⇒ 字形由 String.fromCodePoint(0x37C3) 生成（roundtrip 验过），不手打。
+
 **Updated:** 2026-11-18 (㟁 **「桌面端这一侧只落一行：`model_dir: None` **显式不挪窝** —— 模型库的默认落点（`$HOME/.neuron/models`）在桌面上是可写的 ⇒ 已下载的模型库一个字节都不动；而「显式写 None」本身是闸钉着的形状」** —— 承 父仓 U+37BD 条（本地模型下载那一刀：`EmbeddedConfig` 新增 `model_dir` 字段），本条记**落点**、**为什么不挪窝**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-18 | authority=measured | scope=project | source=父仓 U+37BD 条（本地模型下载那一刀）｜ 改动：桌面端（**改** `src-tauri/src/lib.rs` 一行：`EmbeddedConfig` 构造补 `model_dir: None`）｜ 读数：桌面 `cargo check --lib`（src-tauri）**零 error** ＋ 父仓新闸 **7/7**（N5 钉着这一行的形状——缺了它就是「谁把桌面默认改成挪窝，历史下载全部变成没下载」） | status=active | supersedes=none
@@ -7,6 +25,61 @@
 ② **⚠️ 仍然欠着的** —— ❶ **桌面下载面板没有两段式**（LocalEnginePanel 不认 `recommended` ⇒ 老模型照样混在推荐档）⇒ 另一刀；❷ 真机／真上游那一格与本刀无关，不占。
 
 ③ **⚠ 圈码：本条占 U+37C1（㟁）** —— 承 父仓 U+37BD 条的取号（逐字扫十二本账本 ⇒ U+37C1 全局零命中 ＋ 高于本账水位 U+37A4；⚠️ U+37C0 已被兄弟在飞面占着 ⇒ 顺延跳过）⇒ 字形由 String.fromCodePoint() 生成，不手打。
+
+**Updated:** 2026-11-17 (㞤 **「桌面端这一侧 —— AG-UI 流里那块面**认得、**取得出**、**画在它被点名的那句话下面**；而归约器**不许吞掉** activity（吞掉＝面静默消失＝失败长得像成功）」** —— 承影仓 U+37A1 条（AG-UI 承载 A2UI 那一族）＋ 用户裁决逐字（「agui 主要是对用户 和 agent 间无关」／「多种协议尽量都要兼容 所以保留 a2a」），本条记**落点**、**判据与真变异**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=影仓 U+37A1 条（AG-UI 承载 A2UI 那一族）＋ 用户裁决逐字（「agui 主要是对用户 和 agent 间无关」＋「多种协议尽量都要兼容 所以保留 a2a」） ｜ 改动：桌面端（**新** `src/lib/agui/a2uiActivity.ts`（官方字面量 ＋ 提取器 ＋ surfaceId 取法）＋ **改** `src/lib/agui/types.ts`（认得 `ACTIVITY_SNAPSHOT` ＋ 活动记录形状）＋ **改** `src/lib/agui/protocol.ts`（归约器收着 activity，**不许吞掉**）＋ **改** `src/lib/agui/driver.ts`（交出 `a2ui_surface`）＋ **改** `src/lib/agui/conversationTurn.ts`（把它交给界面那一层）＋ **改** `src/types/index.ts`（消息上挂面）＋ **改** `src/components/chat/A2uiToolSurface.tsx`（**新** `A2uiOpsSurface`）＋ **改** `src/pages/ConversationPage.tsx`（面画在**那条消息下面**）＋ **新** `src/lib/agui/__tests__/aguiA2uiActivity.test.ts`（8 条）＋ **新** `src/lib/agui/__tests__/fixtures/agui_activity_v1.json`（契约副本））｜ 读数：新增判据 **8/8 绿** ＋ `tsc --noEmit` **exit 0**（0 错）＋ 全量 vitest **1 failed / 203 passed / 5 skipped（209 文件）｜ Tests 1 failed / 1799 passed / 25 skipped（1825）** ⇒ ⇒ 那 1 红是**跨端措辞漂移**（两端文案文件都在别人在飞面 ⇒ ⇒ **零命中本刀文件**）｜ 闸：影仓 **64 道闸全跑：52 绿 / 9 红 / 3 判不了 / 0 超时** ⇒ ⇒ 新闸 **绿** ＋ 余下 9 道红**零命中本刀** | status=active | supersedes=none
+
+① **✅ 落点** —— ❶ `src/lib/agui/a2uiActivity.ts`（**新**）：官方字面量 `a2ui-surface` ＋ `a2ui-surface-`（**逐字照抄官方那一处**，不手打）＋ `a2uiOpsFromEvent()`（三档读数：不是 activity ⇒ null；别的 activity ⇒ null；**形状不对 ⇒ 抛**）＋ `a2uiSurfaceIdOf()`（取法照官方顺序）。❷ `types.ts` 认得 `ACTIVITY_SNAPSHOT`（**不认 ⇒ 那条 activity 被当成「不认识」⇒ ⇒ 面静默消失**）＋ `protocol.ts` 的归约器**收着** activity（**不许吞掉**：与 CUSTOM 同一纪律）＋ `driver.ts` 交出 `a2ui_surface` ＋ `conversationTurn.ts` 交给界面。❸ **界面那一格**：`A2uiOpsSurface`（官方 SDK 渲染器）＋ 页面在**那条消息下面**画出面（不是顶部面板、不是另开一页）＋ 「只有面、没有话」那一轮**也落一条消息**（否则面无处安放 ⇒ ⇒ 用户什么都看不到）。
+
+② **✅ 判据与真变异** —— ❶ **新** `src/lib/agui/__tests__/aguiA2uiActivity.test.ts` **8 条**：契约逐字是那五个字段／ops **逐字**取出（零翻译）／不是 activity 与别的 activity 都**不碰**／形状不对**响亮地拒**（含 v0.8 旧信封）／归约器**不许吞掉**／**官方 SDK 收下这份契约 ⇒ 面真的存在**／driver 交出 `a2ui_surface`／别的 activity 不画 ⇒ ⇒ **8/8 绿**。❷ **M2**（把 `ACTIVITY_SNAPSHOT` 从已知事件类型里删掉）⇒ ⇒ 桌面 **2 条当场红**（归约器那条 ＋ driver 那条）＋ 父仓那道闸 **1 条红**（W4）⇒ ⇒ 这一格正是「**面静默消失**」那个形状 ⇒ ⇒ 还原后 sha256 **67A2288C… 逐字一致**、**8/8 回到绿**。
+
+③ **⚠️ 仍然欠着的** —— ❶ **真机那一格仍空**（设备未授权）⇒ ⇒ 「桌面上真能画出这块面」**未验**。❷ **真上游仍打不动**（无 key ⇒ 官方 401）⇒ ⇒ 官方**服务端**那一格没法在官方服务上验。❸ **发布链那一格**：本刀**没改** CI。❹ 全量 vitest 那 **1 条红**（**跨端措辞漂移**：桌面「端脑这次没有画界面。」vs 移动「大脑这次没有画界面。」）⇒ ⇒ **两份文案文件都在别人在飞面** ⇒ ⇒ **只报告不代修**。❺ 本刀**未提交** ⇒ ⇒ 只读提交树面的那道闸**仍红**。
+
+④ **⚠ 圈码：本条占 U+37A4（㞤）** —— 落笔前**逐字重扫**六本账本 ⇒ ⇒ 桌面端工作树面水位 **U+379F**、**提交树面**水位 **U+357B** ⇒ ⇒ 取 **U+37A4**（桌面端）／**U+37A1**（父仓）／**U+37A2**（移动端）／**U+37A3**（端脑）—— 四枚**互不相同**、各自高于自己那一本的水位、提交树面也零命中 ⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
+**Updated:** 2026-11-17 (㞟 **「桌面端那一笔老债 —— **撒出去的 `any`**：`A2UI_CATALOGS` 声明成 `readonly Catalog<any>[]` ⇒ ⇒ 调用点只好再强转一次 ⇒ ⇒ 那个 `any` 是**上一刀带进来的**，而**真上界其实存在**（两个目录里的组件实现都是 `ComponentApi` 的子类型）⇒ ⇒ 这一刀把 `any` 收掉；顺带把**跨端措辞漂移**那条红**查清归属**（不是本刀引入，也不是本刀能修）」** —— 承影仓 U+3797 条（A2UI 升官方 v1.0 那一族）＋ 用户指令逐字（「及时清理老的技术债务」），本条记**落点**、**为什么这个 `any` 收得掉**、**那条红的归属**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=用户指令逐字（「及时清理老的技术债务」）＋ 影仓 U+3797 条（A2UI 升官方 v1.0 那一族） ｜ 改动：桌面端（**改** `src/lib/a2uiProtocol.ts`（`A2UI_CATALOGS` ⇒ `readonly Catalog<ComponentApi>[]` ＋ 去掉调用点强转））｜ 读数：`tsc --noEmit` **exit 0**（0 错）／ `eslint`（4 个相关文件）**exit 0、0 error / 0 warning**（上一刀唯一那处 `any` warning **销账**）／ a2ui 家族 vitest **47 过 / 1 红 / 4 跳（6 文件｜52 条）** ／ 全量 vitest **1 failed / 202 passed / 5 skipped（208 文件）｜ Tests 1 failed / 1791 passed / 25 skipped（1817）** ｜ 闸：影仓 **63 道闸全跑：51 绿 / 9 红 / 3 判不了 / 0 超时** ⇒ ⇒ 余下 9 道红**零命中本刀** | status=active | supersedes=none
+
+① **✅ 落点** —— ❶ `src/lib/a2uiProtocol.ts`：`A2UI_CATALOGS` 的类型从 `readonly Catalog<any>[]` 改成 `readonly Catalog<ComponentApi>[]` ⇒ ⇒ ❷ 调用点的强转**去掉** ⇒ ⇒ ❸ 官方 SDK 的构造签名本身就是 `Catalog<any>[]` ⇒ ⇒ 那个 `any` **由官方扛**，不是我们这份仓的债。
+
+② **⚠️ 为什么这个 `any` 收得掉（不是「换个地方藏」）** ——
+　❶ 目录里两个组件（`TaskCard`／`AgentStatusIndicator`）的实现**都是** `ComponentApi` 的子类型 ⇒ ⇒ `Catalog<ComponentApi>[]` 是**真上界**（不是把 `any` 换个名字）。
+　❷ ⚠️ **不许顺手把官方 SDK 的 `any` 也收掉** ⇒ ⇒ 那是**官方类型**（`@a2ui/web_core` 的构造签名就是 `Catalog<any>[]`）⇒ ⇒ 我们把**自己这份声明**收窄就够了 ⇒ ⇒ 越界去改官方类型 ⇒ ⇒ 那是**替官方做决定**。
+　❸ `eslint` 上一刀唯一那处 warning（`a2uiProtocol.ts` 里那条 `any`）**销账** ⇒ ⇒ 现在 4 个相关文件 **0 error / 0 warning**。
+
+③ **⚠️ 全量 vitest 那条红：归属查清了（不是本刀引入，也不是本刀能修）** ——
+　❶ 剩的这 1 条红在 `src/lib/__tests__/clientTools.a2ui.test.ts`：它断言 `i18n.t('a2ui.surfaceNotDrawnSilent')` **等于**移动端 `app_zh.arb` 里的 `a2uiSurfaceReportNoSurface` ⇒ ⇒ 而桌面端 `zh-CN.json` 里那一句是「**端脑**这次没有画界面。」移动端 arb 里那一句还是「**大脑**这次没有画界面。」⇒ ⇒ **跨端措辞漂移** ⇒ ⇒ 那条断言来自 **2026-11-04 的老提交** `54aaed48` ⇒ ⇒ **不是上一刀带进来的**。
+　❷ **两份文案文件都在别人在飞面**（`shadow-mobile/lib/l10n/app_*.arb` 与 `shadow-desktop/src/i18n/*.json` 现在都是 M 状态）⇒ ⇒ **只报告不代修**（动了就撞在飞面）。
+　❸ ⚠️ 而且它**不是一行的事**：移动端 `app_zh.arb` 里「大脑」**43 处**、「端脑」**6 处** ⇒ ⇒ 那是一次**用词迁移** ⇒ ⇒ 不在本刀范围 ⇒ ⇒ 本刀**只销掉**那个 `any`。
+　❹ ⚠️ 比上一刀记的「4 failed / 7 failed」**少了 3 条**（e2eStrictness／cloudProviders／VoicePage i18n）⇒ ⇒ 本刀在桌面端**只改了一个类型标注** ⇒ ⇒ 那 3 条**不是本刀修的** ⇒ ⇒ 是工作树里别人的在飞改动带过去的 ⇒ ⇒ **不代认**。
+
+④ **⚠️ 仍然欠着的** ——
+　❶ 那 1 条跨端措辞漂移**仍红**（归属见 ③）⇒ ⇒ 要修就得**同时**动两端文案 ⇒ ⇒ 两端都在飞 ⇒ ⇒ 本刀不碰。
+　❷ 真机那一格仍空（设备未授权）⇒ ⇒ 「桌面上真能画出这块面」**未验**。
+　❸ **真上游仍打不动**（无 key ⇒ 官方 401）⇒ ⇒ 官方**服务端**那一格没法在官方服务上验。
+　❹ 桌面端那把 admin token 要不要给一个「填远端端脑 admin key」的口子 ⇒ ⇒ **产品决定**，不猜。
+
+⑤ **⚠ 圈码：本条占 U+379F（㞟）** —— 落笔前**逐字重扫**六本账本（父仓／移动端／桌面端／端脑／海马体／前额叶）⇒ ⇒ 父仓水位 U+379A、端脑水位 U+379B ⇒ ⇒ **两枚都是兄弟会话刚占的** ⇒ ⇒ 取 **U+379C**（父仓）／**U+379D**（移动端）／**U+379E**（端脑）／**U+379F**（桌面端）—— 四枚**互不相同**、各自高于自己那一本的水位、全局零命中 ⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
+**Updated:** 2026-11-17 (㕽 **「桌面端换官方 A2UI SDK —— 自写的 TS 协议栈退场，`@a2ui/web_core` ＋ `@a2ui/react` 0.15.0 上位；**客户端不许自己实现协议层**」** —— 承影仓 U+3797 条（A2UI 升 v1.0 那一族），本条记**落点**、**改线要点**、**判据与读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=影仓父仓 U+3797 条（A2UI 升官方 v1.0 那一族） | 改动：桌面端（**改** `package.json` ＋ `pnpm-lock.yaml`（加 `@a2ui/react` ＋ `@a2ui/web_core` 0.15.0）＋ `src/lib/a2uiProtocol.ts`（**重写** ⇒ 官方 SDK 薄适配）＋ `src/lib/a2uiClient.ts`（**重写** ⇒ 只做传输）＋ `src/lib/clientTools.ts`（`show_a2ui_surface` 那段 ＋ 协议层改动态 import）＋ `src/components/chat/A2uiSurface.tsx`（**重写** ⇒ 包官方 `A2uiSurface`）＋ `src/components/chat/A2uiPanel.tsx`（**重写** ⇒ 五种 phase）＋ 六个 A2UI 判据文件（`a2ui.test.tsx`／`a2ui.inline.test.tsx`／`a2ui.live.test.tsx`／`a2ui.realbytes.test.tsx`／`clientTools.a2ui.test.ts`／`tests/api-contract/a2ui-live.test.ts`）＋ **新** `src/lib/__tests__/a2ui.catalog.test.ts`） ｜ 读数：`tsc --noEmit` **exit 0**（0 错）／ `eslint`（12 个相关文件）**exit 0**（0 error / 1 warning）／ a2ui 家族合跑 **44 过 / 1 红 / 4 跳** ／ 全量 vitest **4 failed / 199 passed / 5 skipped（208 文件）｜ Tests 7 failed / 1785 passed / 25 skipped（1817）** ／ 真变异 A 与 A2 **各 13 条当场红** ／ 新增目录契约判据 **5 过** ｜ 闸：影仓 **62 道闸全跑 46 绿 / 14 红 / 2 判不了 / 0 超时** ⇒ ⇒ 14 条红**零命中本刀文件**（本刀引入的那 1 处空 `catch` 已同刀销账） | status=active | supersedes=none
+
+① **✅ 落点** —— ❶ **依赖**：`package.json` 加 `@a2ui/react` ＋ `@a2ui/web_core` 0.15.0（＋ lockfile）。❷ **协议层**：`src/lib/a2uiProtocol.ts` 改成官方 SDK 的**薄适配**（`@a2ui/web_core/v1_0` ＋ 官方 `basicCatalog` ＋ 自己的 `shadowCatalog` ＋ `createA2uiProcessor`）⇒ ⇒ **不再自己实现 A2UI 协议**（**只留**传输层与「从 A2A 事件里挖消息」那一层）。❸ **面组件**：`A2uiSurface.tsx` 包官方 `A2uiSurface`（来自 `@a2ui/react`）＋ Markdown 渲染（`react-markdown` ＋ `remark-gfm`）⇒ ⇒ **协议值原样显示**（不翻译）。
+
+② **⚠️ 改线要点（本刀踩出来的三处）** ——
+　❶ **组件级目录键是 `catalogId`（无 `@`）**：官方 SDK 里 `@catalogId` **零命中**；v1.0 的 `@` 是**保留指令前缀**（只有 `@path`／`@call`）⇒ ⇒ **不许**做「`@catalogId` → `catalogId`」的客户端改写层（官方自己读无 @ 的键）⇒ ⇒ **客户端不许自己实现协议层**这条规矩在这里最容易被绕过去。
+　❷ **组件 id 必须是合法 UAX #31 标识符** ⇒ ⇒ **连字符不合法**（`task-0` 不行，`task0` 才行）⇒ ⇒ 端脑那侧已改。
+　❸ **载荷在 `parts[].data` 里必须是对象**（不是 JSON 字符串）⇒ ⇒ 写成字符串会被整条跳过 ⇒ ⇒ 界面空白且不报错。
+
+③ **✅ 判据与读数** —— ❶ **协议层不再是自写栈**：`a2uiProtocol.ts` 现在只做三件 —— **传输**（SSE 解帧 ＋ A2A 信封里挖消息）、**目录 ＋ 处理器工厂**（官方 `Catalog`／`createComponentImplementation`／`MessageProcessor`，版本字段**显式**给 `1.0`、`reportErrorsOnly` 与 `allowUnknownElements` 都开）、**判据专用**（`isValidComponentId` 只是包一层官方 `isValidUax31Identifier`，**不改写任何东西**）⇒ ⇒ **零协议翻译**（没有键名改写、没有载荷重排、没有组件 id 修补）⇒ ⇒ 端脑不合规就是官方 SDK 拒 ⇒ ⇒ 客户端**如实报出来**。❷ **判据**：a2ui 家族合跑 **44 过 / 1 红 / 4 跳**（加 `agui.live` ⇒ 44 过 / 1 红 / 6 跳）⇒ ⇒ 那 1 条红是**既存的跨端措辞漂移**（桌面「端脑这次没有画界面。」vs 移动 `app_zh.arb`「大脑这次没有画界面。」⇒ 修它要动 i18n/arb ⇒ **禁改范围** ⇒ 只报告不代修）。❸ **全量 vitest**：**4 failed / 199 passed / 5 skipped（208 文件）｜ Tests 7 failed / 1785 passed / 25 skipped（1817）** ⇒ ⇒ 7 条红**逐条核对**：e2eStrictness 2 条（cwd 找父仓 `tests/e2e-ui/*.spec.ts` 而该目录不存在）＋ cloudProviders 3 条（MiniMax base url，**带网络** ⇒ ⇒ 并行负载下会飘）＋ VoicePage.i18n 1 条（tts 并行改动）＋ **clientTools.a2ui 1 条 —— 既存的跨端措辞漂移**（桌面「端脑这次没有画界面。」vs 移动 `app_zh.arb`「大脑这次没有画界面。」⇒ ⇒ 两端那两份文案**都在别的会话在飞** ⇒ ⇒ 修它要动别人正在改的文件 ⇒ ⇒ **只报告不代修**）⇒ ⇒ **零命中本刀引入的形状**。❹ **真变异两道各当场红**：变异 A（**面级** `catalogId` 加 `@`）⇒ ⇒ 13 条当场红；变异 A2（**组件级** `catalogId` 加 `@`）⇒ ⇒ 13 条当场红，且**第一条正是「端脑发的就是 `catalogId`，客户端原样交给官方 SDK」** ⇒ ⇒ 「零翻译」那条判据确实在钉 ⇒ ⇒ 还原后 **sha256 逐字一致**（`686B68AC…DCFD`）。❺ **本刀补的目录契约判据（5 条，绿）**：发布目录契约与桌面端**在代码里注册**的那份目录**逐字一致**（catalogId／协议版本／组件集合／三档枚举）⇒ ⇒ 且它**接受**端脑真字节里的每一个业务组件。❻ **官方 SDK 的实测出入（以 `node_modules/@a2ui/*` 的 .d.ts 为准）**：`@a2ui/react` **没有** v1_0 子路径（exports 只有 `.`／`./v0_8`／`./v0_9`／`./styles`）且类型**锚定 `@a2ui/web_core/v0_9`**；`MessageProcessor` 的**默认** `version` 是 `v0.9` ⇒ ⇒ 必须**显式**给 `1.0`；v1.0 构造器第二参是**版本号**（旧「第二参是 components」是 deprecated 重载）；官方渲染准备发生在**建面**阶段（`node.impl` 建面就绑定）⇒ ⇒ **事后往目录表注入实现太晚**。❼ **本刀一度自己引入了一个红**（node 环境收集期 `HTMLElement is not defined`：`agui.live.test.ts` → `agui/bridge.ts` → `clientTools.ts` → `a2uiProtocol.ts` → `@a2ui/react`）⇒ ⇒ 修法是 `clientTools.ts` 改**动态 import**（协议层必须能在 node 环境加载）⇒ ⇒ 全量 **6 failed → 5 failed**。
+
+④ **⚠️ 仍然欠着的** —— ❶ **真机／活端脑那一格**：`tests/api-contract/a2ui-live.test.ts` 走**活端脑**（端脑不在 ⇒ 整组**跳过**，不是假绿）⇒ ⇒ 本刀那格**未取到真读数**。❷ **跨端宽严不一致**：桌面端 `extractA2uiMessages` **对象／字符串两种形状都收**，移动端**只收对象** ⇒ ⇒ 两端对同一批字节的宽容度不同 ⇒ ⇒ **跨端一致性那一格仍开着**。❸ 本仓的 `AGENTS.md` 那一本**没被本刀改**（除本条）⇒ ⇒ 其余落点见影仓父仓 U+3797 条。
+
+⑤ **⚠ 圈码：本条占 U+357D（㕽）** —— 落笔前**逐字重扫**五本账本 ⇒ ⇒ 本仓水位 U+357B ⇒ ⇒ 取 **U+357D**（高于本仓水位、与影仓三枚**互不相同**、全局零命中）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
 **Updated:** 2026-11-17 (㕻 **「桌面端「资源管理」页 —— 文件与产物能上传、能搜、能取回、能改名、能删；且「读不到」不许画成「没有」」** —— 承海马体 U+3283／U+3284 两条（文档面）与影仓 U+357A 条，本条记**本仓落点**、**判据与真变异**、**承载级真读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承海马体 U+3283／U+3284 两条（文档面）与影仓 U+357A 条｜ 改动：src/lib/documentsClient.ts（**新**）＋ src/pages/ResourcesPage.tsx（**新**）＋ src/App.tsx（路由）＋ src/i18n/{zh-CN,en-US}.json ＋ src/navigation/nav.g.ts（重生成）＋ src/lib/__tests__/documentsClient.test.ts（**新**，13 条）＋ src/pages/__tests__/ResourcesPage.test.tsx（**新**，11 条）＋ tests/lib/resourcesLive.test.ts（**新**，7 条）＋ 本条 ⇒ ⇒ **10 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：本仓判据 **24 过 / 0 红**（客户端 13 ＋ 页面 11）＋ 承载级 live **7 过 / 0 红**（真 hippocampus 服务 ＋ 真 blob 目录）＋ 桌面全量 **1782 过 / 1 红 / 18 跳**（那 1 红 ＝ **存量债**：桌面 i18n「端脑这次没有画界面。」vs 移动端 ARB「大脑这次没有画界面。」⇒ ⇒ **HEAD 就是红的**，零命中本刀文件）＋ tsc -b **0 错** ＋ eslint **0 问题** ｜ **5 道真变异**各当场红（1／2／1／1／1）、还原后 sha256 逐字一致 ｜ 闸：**45 绿 / 15 红 / 2 判不了**（62 道脚本闸全跑；十五道红**逐字零命中本刀文件** ⇒ ⇒ 不代修、不销账 —— ⚠️ 两处提到 agent-surface.json 的是**存量债**：替换字符闸那边 HEAD／工作树／提交版**都是 3 个 U+FFFD**（本刀**零新增**），遗留残留闸**自己写着**「能力清单正在被别的会话改，本轮不动它」；⚠️ 2 道**判不了**（exit 2，不算红）：check-ci-actually-ran（要 CI 上下文）＋ check-msrv-floor（仓级脚本）） | status=active | supersedes=none
@@ -33,6 +106,26 @@
 
 ④ **⚠ 圈码：本条占 U+3579 (㕹)** —— 落笔前**逐字重扫**五本账本（Node 读文件）⇒ ⇒ 桌面端水位 U+3571 ⇒ ⇒ 从 U+3578 起五本皆 0 命中 ⇒ ⇒ 桌面端取 **U+3579**（高于自己那一本的水位）⇒ ⇒ 父仓那条取 U+3578（两枚互不相同）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
 
+**Updated**: 2026-11-17 (㕱 **「桌面这一侧：`generate_video` 客户端工具 —— 创建→轮询→交产物；失败真的失败，超时说还在生成」** —— 承影仓 U+356D 条（输入格式收口那一族）与端脑 U+356F 条（视频门面那一族），本条记**本仓落点**、**判据与真变异**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=影仓 U+356D 条（输入格式收口那一族）与端脑 U+356F 条（视频门面那一族）｜ 改动：`src/lib/telencephalonClient.ts`（`generateVideo`／`queryVideo` ＋ 类型）＋ `src/lib/clientTools.ts`（`generate_video` 工具 ＋ 轮询）＋ `src/i18n/zh-CN.json` ＋ `src/i18n/en-US.json` ＋ `src/lib/capabilityDefaults.ts`（**只改注释** ＋ 修 2 个 U+FFFD）＋ `src/lib/__tests__/clientTools.videoGen.test.ts`（**新**，11 条）⇒ ⇒ **6 文件** ＋ 零新增依赖 ＋ **零新增端点**（走端脑已开的那两条）｜ 读数：新判据 **11 过 / 0 红** ＋ 桌面全量 **1758 过 / 1 红 / 16 跳**（那 1 红 ＝ 兄弟在飞的跨端措辞，**零命中本刀文件**；基线 1747／1／16 ⇒ ⇒ ＋11 正是本刀）＋ `tsc --noEmit` **0 错** ｜ **1 道真变异**（恰好 1 红）、还原后逐字一致 ｜ 闸：影仓 ****44 绿 / 16 红 / 2 判不了**（十六道红**逐字零命中本刀文件** ⇒ ⇒ 不代修、不销账；⚠️ 本刀**唯一**新增的阻断是 `brain-route-surface` 那两条 —— 手机端 `libencephalon.so` 落后于源码 ⇒ ⇒ 真机上就是 404 ⇒ ⇒ 「失败长得像成功」；⚠️ `check-cross-client` 是**连带**红（因上一条）；⚠️ `check-door-policy`（8 条 voice.rs 存量）与 `check-endpoint-matrix`（23 条存量）**delta 0** ⇒ ⇒ 本刀那两条视频路由**门型与锁矩阵都对得上**）**  | status=active | supersedes=none
+
+① **⚠️ 取证：视频与出图同族，但官方是**两步** ⇒ ⇒ 客户端工具内部必须轮询** —— ❶ 桌面已有 `generate_image` 那一族（云供应商模型 ＋ 客户端工具）⇒ ⇒ 视频沿用同一形状 ⇒ ⇒ **不新造一套工具体系**。❷ ⚠️ 官方视频是「创建 ⇒ 回 task_id ⇒ 轮询查询 ⇒ 产物 URL 在查询响应里」⇒ ⇒ **同步等**会撞 HTTP 超时（官方任务几十秒到几分钟）⇒ ⇒ 客户端工具内部自己轮询 ⇒ ⇒ 对模型只呈现**一次工具调用**。❸ ⚠️ **端脑不落状态** ⇒ ⇒ 查询必须带 `model`（「哪个供应商拥有这个任务」只能靠模型 id 找回）⇒ ⇒ 客户端从**创建响应**里取回**端脑实际用的**模型 id ⇒ ⇒ 再去轮询 ⇒ ⇒ **不许瞎问一家**（会问到别人的任务上去）。
+
+② **✅ 落点 A：`telencephalonClient.ts` —— 两个方法 ＋ 三个类型** —— ❶ `generateVideo()`（POST）＋ `queryVideo(taskId, model)`（GET）。❷ ⚠️ `queryVideo` 的路径**必须是单个模板字面量**（`/api/telencephalon/videos/generations/${encodeURIComponent(taskId)}?model=${encodeURIComponent(model)}`）⇒ ⇒ **端点映射闸按字面量扫调用点** ⇒ ⇒ 拼接出来的路径它**看不见** ⇒ ⇒ 写成拼接 ＝ 那一格闸是瞎的。❸ 类型：`GenerateVideoRequest`／`GenerateVideoResponse`／`VideoTaskResponse`。
+
+③ **✅ 落点 B：`clientTools.ts` —— `generate_video` 工具（**失败不许长得像成功**）** —— ❶ 参数表：prompt／model／duration／resolution／ratio／task_id，**无 required**（prompt 与 task_id 二选一 ⇒ ⇒ 运行时校验）。❷ 轮询间隔 **3s**、预算 **180s**。❸ 三种结局**分开说**：**成功** ⇒ ⇒ 回 `{report, video}`；**失败／取消** ⇒ ⇒ **抛出去**（⇒ ⇒ 这次工具调用**真的是失败** ⇒ ⇒ 模型能看见失败并改口径）；**超时** ⇒ ⇒ 回 `{status:'processing', task_id}` ⇒ ⇒ **不许说失败**（那是「失败长得像成功」的另一形态：把「还在生成」说成「生成不出来」）。❹ **查回路径**要同时给 task_id ＋ model（端脑不落状态）⇒ ⇒ 少了 model 就**报错**，不许猜。
+
+④ **✅ 落点 C：i18n 两份同键 ＋ 兜底名单**只改注释**（**不是**又改一次事实）** —— ❶ `src/i18n/zh-CN.json` ＋ `src/i18n/en-US.json` 同加 `clientTools.videoGenerated` ＋ `clientTools.videoProcessing`（i18n 完整性闸逐键比两份）。❷ ⚠️ `src/lib/capabilityDefaults.ts` 里的兜底名单**保留 `video_gen` 不动** —— 那是**老**端脑的产品事实（老端脑确实不服务那一档）⇒ ⇒ 新端脑下发的 `served` 含它 ⇒ ⇒ 客户端**自动**放行 ⇒ ⇒ **两端不必各改一次** ⇒ ⇒ 本刀只把注释改成真话。❸ 顺带修掉传输层留下的 **2 个 U+FFFD**（替换字符闸）。
+
+⑤ **✅ 判据（11 条，`src/lib/__tests__/clientTools.videoGen.test.ts`）** —— ❶ 注册与**参数表逐字**（含 enum）② 成功路径 ③ **轮询用端脑给回来的模型 id**（不是客户端自己拼的）④ **失败真的抛** ⑤ **fake timers 下超时 ⇒ processing**（不许说失败）⑥ task_id 查回 ⑦ 缺 model 报错 ⑧ 空 prompt 报错 ⑨ **可选参数不外塞**（不把 undefined 塞进请求体）⑩ `pickReportPayload` ⑪ **桌面 i18n ↔ 移动 arb 互读比对**（两句逐字一致 ⇒ ⇒ 两端措辞不许漂）。
+
+⑥ **⚠️ 变异 M4（当场红 ＋ 还原逐字一致）** —— 把「失败 ⇒ 抛」改成「失败 ⇒ 返回报告」⇒ ⇒ **恰好 1 红**（那条判据）⇒ ⇒ 证明「失败不许长得像成功」这件事**有牙**（不是判据自说自话）⇒ ⇒ 还原后**逐字一致**。
+
+⑦ **⚠️ 仍然欠着的** —— ❶ **真机那一格未跑**（本刀只过判据面）。❷ **真上游仍打不动**（无 key ⇒ ⇒ 官方 401）⇒ ⇒ 不能说「视频真能用」。❸ ⚠️ 手机端那份 `libencephalon.so` 落后于源码 ⇒ ⇒ `check-brain-route-surface.mjs` 阻断由 1 条变 3 条 ⇒ ⇒ 修法是重编 `.so`（**本刀不代跑**：会把兄弟在飞的端脑代码一起编进去）⇒ ⇒ 如实记账。❹ **视频产物在聊天里怎么呈现／下载**（官方链接**有时效**）留后续一刀。
+
+本条占 U+3571（㕱）
+
 **Updated**: 2026-11-16 (㌺ **「桌面这一侧：页面真的走 AG-UI 了 —— 判据抓到「工具清单没进请求」这一格」** —— 承影仓 U+3567 条（页面换线那一族），本条记**本仓落点**、**判据抓到的真 bug**、**更正一处说错**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3567 条（页面换线那一族）｜ 改动：`src/pages/ConversationPage.tsx` ＋ `src/lib/agui/{toolOutcomeGate,bridge,conversationTurn}.ts`（**新**）＋ `src/lib/agui/driver.ts` ＋ `src/lib/agui/__tests__/{aguiGate,aguiBridge,aguiTurn}.test.ts`（**新**）＋ `src/types/index.ts` ＋ `src/components/chat/ToolCallMessageCard.tsx` ＋ `tests/pages/ConversationPageAgui.test.tsx`（**新**）＋ `tests/pages/ConversationPageTokenStats.test.tsx` ⇒ ⇒ **12 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：AG-UI 判据 **51 过 / 0 红**（含**页面级 6 条**）＋ `tsc --noEmit` **0 错** ｜ **23 道真变异**各只红目标判据所在机制族 ｜ 桌面全量 **1747 过 / 1 红**（那 1 红＝兄弟在飞的跨端措辞，**零命中本刀文件**）｜ 闸：**13 绿 / 8 红**（零命中本刀文件）| status=active | supersedes=none
@@ -49,6 +142,22 @@
 
 ⑥ **⚠ 圈码：本条占 U+333A (㌺)** —— 落笔前**重扫**全树：官方候选（U+3562／3563／3339）**已被兄弟并发占掉** ⇒ ⇒ 真判据是**自己逐字扫**整个 iBLOC 树 ⇒ ⇒ 33xx 段自 U+333A 起零命中 ⇒ ⇒ 取 **U+333A** ⇒ ⇒ 与父仓／移动端那两枚**互不相同**（R1′）＋ 高于桌面端自己的水位（U+3338）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
 
+**Updated**: 2026-11-16 (㌹ **「桌面这一侧：视频生成有自己的桶 —— 且这一档端脑**不服务**（明说，不装能用）」** —— 承影仓 U+3562 条（第 10 档那一族），本条记**本仓落点**、**「用不了」的两种原因**、**判据与变异**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3562 条（第 10 档那一族）｜ 改动：`src/lib/capabilityDefaults.ts` ＋ `src/lib/telencephalonClient.ts` ＋ `src/components/business/CapabilityDefaultsCard.tsx` ＋ `src/pages/ProvidersPage.tsx` ＋ `src/i18n/{zh-CN,en-US}.json` ＋ `src/lib/__tests__/capabilityDefaults.test.ts` ⇒ ⇒ **6 文件** ＋ 零新增依赖 ＋ **零新增端点** ｜ 读数：`vitest src/lib/__tests__/capabilityDefaults.test.ts` **13 过 / 0 红**（上一刀 8 ＋ 本刀 5）＋ 卡片判据 **7 过 / 0 红**（上一刀 6 ＋ 本刀 1）＋ 全量 **1747 过 / 1 红 / 16 跳**（那 1 红＝兄弟在飞的跨端措辞，**零命中本刀文件**；⚠️ 同一份代码三次读数 1~3 红 ⇒ ⇒ 本套件**自身 flaky** ⇒ ⇒ 报数要带「哪一次」；本刀的判据文件连跑稳定绿）＋ `tsc --noEmit` **0 错** ｜ **2 道真变异**（去掉「端脑不服务」兜底档 ⇒ ⇒ 红 3；拿掉下拉的 `disabled` ⇒ ⇒ 红 1）｜ 闸：**13 绿 / 9 红**（九道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账；多出的那道＝兄弟在飞面新落的 `tests/pages/ConversationPageAgui.test.tsx`〔R3 弱断言独占〕⇒ ⇒ **不是本刀的** ⇒ ⇒ 按纪律不代修）| status=active | supersedes=none
+
+① **⚠️ 本仓落点（六个文件，零新增端点）** —— ❶ `src/lib/capabilityDefaults.ts`（纯模块）：新增 `TELEENCEPHALON_UNSERVED_TIERS`（＝ `{'video_gen'}`）＋ `isServedCapability(cap, info)`。❷ `src/lib/telencephalonClient.ts`：`CapabilityDefaultsView` 增 `served?: string[]`（端脑**已经在下发**的那个字段，**不需要新接口**）。❸ `src/components/business/CapabilityDefaultsCard.tsx`：把 `engineInfo` 接上 `served` ＋ 把「用不了」**拆成两段**（见 ②）＋ `CAPABILITY_FALLBACK_LABELS` 补 `video_gen`。❹ `src/pages/ProvidersPage.tsx`：**首屏兜底词表**从 9 档补成 **10 档**（端脑下发后会覆盖这份）。❺ `src/i18n/{zh-CN,en-US}.json`：新增 `capabilityDefaults.video_gen` ＋ `capabilityDefaults.unservedNow` ＋ `capabilityDefaults.optionUnserved`（zh/en 两份都有值 ⇒ ⇒ 过 i18n 键位完整性闸）。❻ ⚠️ **补上一格真缺口（2026-11-17）**：`usableNow: false` 纯模块**算出来了**，但**卡片渲染里根本没读它** ⇒ ⇒ 下拉里那一档**照常可选** ⇒ ⇒ 「不许给用户一个必然失败的选项」在桌面上**没兑现** ⇒ ⇒ 现在：不可用的候选 `disabled` ＋ 后面补一句原因（`optionUnserved`）⇒ ⇒ 光标成 disabled 用户只会以为「这个模型没了」。
+
+② **⚠️ 「用不了」必须分成两种原因（不许混成一句）** —— ❶ **端脑不服务这一档**（`unservedNow`）：`video_gen` 背后整条链**没有调用入口** ⇒ ⇒ 注册引擎也救不了 ⇒ ⇒ 混进「还没注册」那句 ⇒ ⇒ 用户会去注册引擎 ⇒ ⇒ 白跑一趟。❷ **端脑服务这一档、但那个 id 还没注册**（`unusableNow`，既有那句）。❸ 判据顺序：**端脑说的为准**（`served`）→ ⇒ 没有才退回产品事实（静态兜底）⇒ ⇒ 老端脑（没这个字段）不会让 `video_gen` 变成「可用」⇒ ⇒ 将来端脑真加了门面，这一档**自动放行**（不必再改客户端）。
+
+③ **⚠️ 候选一律标「此刻用不了」** —— `capabilityOptionsByCapability` 里，非引擎解析档原本**恒为** `usableNow: true` ⇒ ⇒ 那一档若端脑不服务，就会给用户一个**必然失败**的选项 ⇒ ⇒ 现在那一档的候选一律 `false`（仍可显示，但标成不可用）⇒ ⇒ 「存得进去、用不了」那一格在**候选面**就被堵住。
+
+④ **✅ 判据与变异** —— ❶ `capabilityDefaults.test.ts` **＋5 条**：老端脑（没 `served`）⇒ 视频档判「不服务」＋ 别的档照旧服务（不许一刀切全灭）＋ 兜底档里**只有**视频这一档；端脑给了 `served` ⇒ 以端脑为准（含「将来放行」那条）；候选一律 `usableNow: false`；配了视频那一档 ⇒ 要报「用不了」；端脑说服务了 ⇒ 不再报。❷ 卡片那条判据（＋1）：端脑的 `served` 里没有那一档 ⇒ ⇒ 那一档的候选**不可选**、且**说清原因**；负控：端脑**服务**的那档照旧可选（不许一刀切全禁）⇒ ⇒ 顺带把卡判据里过时的**九档**假数据改成**十档** ＋ 加上 `served` ⇒ ⇒ 否则那张卡在测一个**不存在的端脑**。❸ **变异**：把 `TELEENCEPHALON_UNSERVED_TIERS` 清空 ⇒ ⇒ **3 条当场红**（13 过／3 红）；把下拉的 `disabled={!c.usableNow}` 拿掉 ⇒ ⇒ **1 条当场红**（卡片 7 过／1 红）⇒ ⇒ 判据**真的承重** ⇒ ⇒ 还原后 sha256 逐字一致。
+
+⑤ **⚠️ 仍然欠着的** —— ❶ **视频门面本身没做** ⇒ ⇒ 这一档**调不通**（桌面只是**说清**了，不是**能用了**）⇒ ⇒ 界面那句「端脑还没服务」是**实话**，不是修好了。❷ 真机那一格没跑（只过了判据面）；真 CI 待取。❸ 本刀**没动** `src/lib/agui/*`（兄弟在飞面）⇒ ⇒ 零撞号。
+
+本条占 U+3339（㌹）
+
 **Updated**: 2026-11-16 (㌸ **「桌面这一侧：AG-UI 协议层 ＋ driver —— 设备工具的结果随**下一次请求**带回去」** —— 承影仓 U+3560 条（客户端接入那一族），本条记**本仓落点**、**两档失败语义**、**判据与读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3560 条（客户端接入那一族）｜ 改动：`src/lib/agui/{types,protocol,client}.ts` ＋ `src/lib/agui/driver.ts` ＋ `src/lib/agui/__tests__/{aguiClient,aguiDriver}.test.ts`（**6 个新文件**）＋ 本条 ⇒ ⇒ **零新增依赖** ＋ **零新增端点** ｜ 读数：`vitest src/lib/agui/__tests__` **27 过 / 0 红**（协议层 19 ＋ driver 8）＋ `tsc --noEmit` **0 错** ｜ **16 道真变异**（协议层 10 ＋ driver 6）**各只红目标判据所在机制族**、还原后 sha256 逐字一致 ｜ 闸：**13 绿 / 8 红**（八道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none
@@ -64,6 +173,114 @@
 ⑤ **⚠️ 仍然欠着的** —— ❶ **页面换线仍欠**：`src/pages/ConversationPage.tsx` 的设备工具状态机（审批／输入／pending／`reportToolResult`）与 AG-UI 的续轮语义**不同** ⇒ ⇒ 要重接那一段；且该页**零判据覆盖**（只有 store／lifecycle 有测试）⇒ ⇒ 单独一刀：**先补判据，再换线**。❷ **端脑那一面变了，本仓会跟着变**（形状逐字对着端脑 `agui.rs` 的翻译表）⇒ ⇒ 改那边要改这边。❸ 真机那一格没跑（只过了判据面）；真 CI 待取。❹ 本刀**没动** `src/lib/telencephalonClient.ts`（兄弟在飞面）⇒ ⇒ 零撞号。
 
 ⑥ **⚠ 圈码：本条占 U+3338 (㌸)** —— 官方 `--next` 给桌面端的候选只当**线索** ⇒ ⇒ 真判据是自己逐字扫 ＋ 用闸自己的判据库算水位：桌面端水位 **U+3337** ⇒ ⇒ 33xx 段自 U+3338 起零命中全树 ⇒ ⇒ 取 **U+3338** ⇒ ⇒ 与父仓／移动端那两枚**互不相同**（R1′）＋ 高于桌面端自己的水位 ⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
+**Updated**: 2026-11-16 (㌷ **「桌面这一侧：上游没列的模型**标出来** —— 「按官方文档补的」不许混在上游那批里」** —— 承影仓 U+355C 条（MiniMax 出图模型消失那族）与 U+3336 条（真上游那一格那族），本条记**落点**、**判据与读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+355C 条（MiniMax 出图模型消失那族）｜ 改动：`src/components/business/ModelEntrySource.tsx`（**新**）＋ `src/pages/ProvidersPage.tsx` ＋ `src/i18n/{zh-CN,en-US}.json` ＋ `src-tauri/src/provider_manager.rs` ＋ `src/pages/__tests__/ProvidersPage.modelsSource.test.tsx`（**新**）⇒ ⇒ **5 文件** ＋ 零新增依赖 ｜ 读数：该判据文件 **5 过 / 0 红** ＋ 桌面全量 **1694 过 / 1 红 / 16 跳**（那 1 红＝兄弟在飞的跨端措辞，**零命中本刀文件**）＋ `tsc --noEmit` **0 错** ＋ `src-tauri cargo check` **exit 0** ｜ 闸：**14 绿 / 8 红**（八道红**零命中本刀文件**；另有一道红命中**上一刀本仓自己写的**那个判据文件〔R5 替身空转〕⇒ ⇒ **已认领并修掉**）| status=active | supersedes=none
+
+① **⚠️ 取证：这一格为什么**必须**标出来（不许靠颜色暗示）** —— ❶ 端脑读面把「上游那份」＋「出厂清单里上游没列的」**合并**成一份列表返回 ⇒ ⇒ 若桌面一视同仁 ⇒ ⇒ 用户看到「MiniMax-H3-Image 在列表里」⇒ ⇒ 会以为**上游真的列了它**⇒ ⇒ **来源标签说谎**（本仓纪律：失败不许长得像成功；「这一条不是实时拉的」也属于这一类）。❷ 上一刀（输入模态那族）已经立过规矩：**逐条**标来源（`upstream`／`catalog`）⇒ ⇒ 这一刀沿用**同一个形状**，不新造第二套措辞。
+
+② **✅ 落点** —— ❶ 新组件 `src/components/business/ModelEntrySource.tsx`：**只给 `model_source==='preset'` 画徽章**（上游列的那批是**默认那一批** ⇒ ⇒ 不画 ⇒ ⇒ 满屏徽章＝噪音）＋ `title` 带来源说明（「上游的模型列表没列它 —— 这是按官方文档补上的」）。❷ `ProvidersPage.tsx`：**模型行与预览行都挂徽章**（不只一处 ⇒ ⇒ 两处不会漂）＋ 列表级提示 `providers.modelsPartlyFromDocs`（「其中 N 条按官方文档预设补齐」）⇒ ⇒ **列表级只说「其中 N 条」**，不逐条重复。❸ i18n zh-CN／en-US **各 3 键**（`models.entrySourcePreset`／`models.entrySourcePresetHint`／`providers.modelsPartlyFromDocs`）⇒ ⇒ 两份都有值（i18n 键位完整性闸管这一格）。❹ ⚠️ **Tauri 层这次必须透传**：`src-tauri/src/provider_manager.rs` 的 `ModelSummary` 字面量加 `model_source`（加字段 ⇒ ⇒ 编译级要求 ⇒ ⇒ 这一刀踩到了上一刀「Tauri 层不用改」的**例外**）。
+
+③ **✅ 判据与读数** —— ❶ 新判据 2 条（`src/pages/__tests__/ProvidersPage.modelsSource.test.tsx`）：上游那条**不出现**徽章 ＋ 补进来的那条**出现**徽章；列表级提示**在**（N 条）＋ **不在**（上游全列时）⇒ ⇒ 钉住「**只给补的画**」＋「**提示别乱挂**」。❷ 该文件 **5 过 / 0 红**。❸ 桌面全量 **1694 过 / 1 红 / 16 跳**（那 1 红＝兄弟在飞的跨端措辞，**零命中本刀文件**）＋ `tsc --noEmit` **0 错** ＋ `src-tauri cargo check` **exit 0**。❹ **顺带还掉上一刀欠的一道红**：`desktop-test-assertions` 的 **R5 替身空转**命中的是**上一刀本仓自己写的** `ProvidersPage.inputModalities.test.tsx`（装了 spy、返回值被丢弃、没有「它被调用」的断言 ⇒ ⇒ 那条用例可能恒绿）⇒ ⇒ 三个用例各补一条 `expect(capSpy).toHaveBeenCalled()` ⇒ ⇒ 该闸 **R5 = 0**（断言数 3589 ⇒ ⇒ **3592**）⇒ ⇒ 闸读数由 **13 绿 / 9 红** 变成 **14 绿 / 8 红**。
+
+④ **⚠️ 仍然欠着的** —— ❶ **真机那一格没跑**（判据是页面级）⇒ ⇒ 真机上「刷新模型」之后那一行徽章长什么样**没看过**。❷ 这一格吃的是**端脑回来的形状**（见端脑 U+355E 条）⇒ ⇒ 端脑那一面变了，桌面这一格会跟着变。❸ **移动端零改动**（那一侧没有「刷新模型」入口）⇒ ⇒ 这一格只落桌面。
+
+⑤ **⚠ 圈码：本条占 U+3337 (㌷)** —— 官方 `--next` 给桌面端的候选只当**线索**（它按提交树面算 ⇒ ⇒ 工作树里已占的那几枚它看不见）⇒ ⇒ 真判据是自己逐字扫 ＋ 用闸自己的判据库算水位：桌面端水位 **U+3332** ⇒ ⇒ **跳过 U+3333**（父仓正文里那个字指的是**并体事故的形状**、不是一条真实条目 ⇒ ⇒ 拿它当条目号会让人误读）＋ **跳过 U+3334／U+3335**（端脑那两枚）⇒ ⇒ 取 **U+3336**（上一刀）／**U+3337**（本刀）⇒ ⇒ 两枚互不相同 ＋ 高于桌面端自己的水位 ＋ 零命中全树。字形由 `String.fromCodePoint()` 生成，不手打。
+
+**Updated**: 2026-11-16 (㌶ **「预览那一格也显示模态 ＋ 来源 —— 「测试并获取模型」看得见每条吃什么」** —— 承影仓 U+3543 条（输入格式收口那族）的「真上游读数」那一格，本条记**取证**、**落点**、**判据与读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3543 条（输入格式收口那族）的「真上游读数」那一格｜ 改动：`src/pages/ProvidersPage.tsx`（预览行复用 `<ModelInputModalities>`）＋ `src/pages/__tests__/ProvidersPage.inputModalities.test.tsx`（＋1 条判据）⇒ ⇒ **2 文件** ＋ 零新增依赖 ｜ 读数：该判据文件 **3 过 / 0 红**（上一刀 2 ＋ 本刀 1）＋ 桌面全量 **1694 过 / 1 红 / 16 跳**（那 1 红＝兄弟在飞的跨端措辞）＋ `tsc --noEmit` **0 错** ＋ `src-tauri cargo check` **exit 0** ｜ 闸：**14 绿 / 8 红**（**更正**：上一稿写「13 绿 / 9 红」⇒ ⇒ 其中一道红命中**本刀自己写的**那个判据文件〔R5 替身空转〕⇒ ⇒ **已认领并修掉** ⇒ ⇒ 八道红零命中本刀文件） | status=active | supersedes=none
+
+① **⚠️ 取证：预览那一格本来**没有**徽章** —— 模型列表的模型行接上了模态（上一刀），但「测试并获取模型」的预览行**只画了名字**（＋ context 长度）⇒ ⇒ 用户在**添加供应商之前**看不到每条吃什么 ⇒ ⇒ 而**上游真值恰好在这一格最准**（刷新面那份是入库后算的，预览这一格是**当场**问上游要来的）⇒ ⇒ 这一格**才是**上游真值最该露脸的地方。
+
+② **✅ 落点** —— ❶ 预览行**复用** `<ModelInputModalities>`（不另写一遍 ⇒ ⇒ 徽章 ＋ 来源进 `title` 的行为与模型行**一致** ⇒ ⇒ 两处不会漂）。❷ **Tauri 层不用改**：`provider_preview_fetch` 反序列化的是 `synapse::providers::catalog::ModelSummary` ⇒ ⇒ 上游那两字段**自动透传**（⇒ ⇒ 这正是上一刀「Tauri 层要透传」那条教训的**复用面** ⇒ ⇒ 同一个 `ModelSummary` 形状 ⇒ ⇒ 三处共用）。
+
+③ **✅ 判据与读数** —— ❶ 新判据 1 条：走「**不要钥匙**的预设」那条路（点了就**自动**预览 ⇒ ⇒ **判据不依赖防抖时间**）⇒ ⇒ 断言徽章是 `audio / pdf / image / text / video`（＝**真上游**那一轮跑出来的形状：上游的 `file` 已归一成 `pdf`）＋ `title` 里是 `models.inputModalitiesSourceUpstream`（**不是**「按文档预设的」）⇒ ⇒ 钉的是「**预览这一格也接上了**」＋「**来源标签没串**」。❷ 该文件 **3 过 / 0 红**（＋1）。❸ 桌面全量 **1694 过 / 1 红 / 16 跳** ＋ `tsc --noEmit` **0 错** ＋ `src-tauri cargo check` **exit 0**。
+
+④ **⚠️ 仍然欠着的** —— ❶ **真桌面那一格没跑**（判据是页面级）⇒ ⇒ 真机上「添加供应商 → 测试并获取模型」那一格的徽章长什么样**没看过**。❷ 真上游的读数在**端脑**那一侧（U+355D 条）⇒ ⇒ 桌面这格吃的是**端脑回来的形状**。
+
+⑤ **⚠ 圈码：本条占 U+3336 (㌶)** —— 官方 `--next` 给桌面端的候选只当**线索**（它按提交树面算 ⇒ ⇒ 工作树里已占的那几枚它看不见：端脑的 3329／332B／332C、桌面自己的 3328／332A／3332）⇒ ⇒ 真判据是自己逐字扫 ＋ 用闸自己的判据库算水位：桌面端水位 **U+3332** ⇒ ⇒ **跳过 U+3333**（父仓正文里那个字指的是**并体事故的形状**、不是一条真实条目）＋ **跳过 U+3334／U+3335**（端脑那两枚）⇒ ⇒ 取 **U+3336**（本刀）／**U+3337**（下一刀）⇒ ⇒ 互不相同 ＋ 高于桌面端自己的水位 ＋ 零命中全树。字形由 `String.fromCodePoint()` 生成，不手打。
+
+**Updated**: 2026-11-16 (㌲ **「「仍要朗读」—— 用户执意要听，就别替他省那一次」** —— 承影仓 U+3556 条（设备静音 ⇒ 不合成那一族）与影仓 U+3558 条（静音模式 ＋ 可恢复开关那族），本条记**桌面端这一侧的落点**、**判据与读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3558 条（静音模式 ＋「仍要朗读」开关）｜ 改动：`src/lib/tts.ts` ＋ `src/components/chat/MessageSpeakButton.tsx` ＋ `src/i18n/{zh-CN,en-US}.json` ＋ `src/lib/__tests__/tts.test.ts` ＋ `src/components/chat/__tests__/MessageSpeakButton.test.tsx` ｜ 读数：vitest **37 过 / 0 红**（上一刀 35 ⇒ ⇒ **+2**）＋ `tsc --noEmit` **0 问题** ＋ 变异**当场红 1 条** ｜ 闸：影仓 U+3558 条的闸读数（**13 绿 / 9 红**，九道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none
+
+① **⚠️ 取证：桌面端这一侧「谁在出声」** —— ❶ **只有手动按钮**：`MessageSpeakButton` 是**唯一**调 `ttsService.speak` 的地方（逐字扫 `src/`）⇒ ⇒ 桌面端**没有**自动朗读 ⇒ ⇒ 这一侧的「跳过」只发生在**用户点了按钮**之后。❷ 那一发是 OpenAI 兼容的 **`/v1/audio/speech`** ⇒ ⇒ **一次请求＝一次模型合成**。❸ **兜底腿**（Web Speech API）是**系统本地**声音（零算力）⇒ ⇒ 但静音时**同样没人听得见** ⇒ ⇒ 一并跳过。
+
+② **⚠️ 取证：这一格是「恢复的路」，不是「省算力」** —— ❶ 桌面端**没有**系统级响铃静音档（Windows 没有；macOS 的专注模式**只管通知**）⇒ ⇒ 「静音模式」那一档**只在 Android 侧**⇒ ⇒ 桌面端仍只查端点音量。❷ 但用户诉求里的第二半（「**回复的时候给个开关提示如果用户执意要打开也可以打开**」）**两端都要有** ⇒ ⇒ 上一刀的桌面端只有「已跳过」那一行提示 ⇒ ⇒ **点不动的提示等于没有路** ⇒ ⇒ 这一刀补上那个开关。
+
+③ **✅ 落点 A：`tts.ts` 加 `force` 旁路** —— ❶ `TtsOptions` 加 `force?: boolean`（默认 `false`）⇒ ⇒ `DEFAULT_OPTIONS` 补 `force: false`。❷ `speak()` 里把 `opts` 的构造**提到探针之前** ⇒ ⇒ 判定改成 `if (!opts.force) { …探针… }` ⇒ ⇒ **force 时探针压根不被问**（不是「问到了但没跳」）。❸ ⚠️ **force 只绕过静音判定** ⇒ ⇒ 其余策略（降级腿、缓存、`shadow.tts.enabled` 偏好）**一字未动**。
+
+④ **✅ 落点 B：按钮旁多一个「仍要朗读」** —— ❶ `MessageSpeakButton.tsx`：跳过提示旁出 `data-testid="message-speak-anyway"` 的按钮 ⇒ ⇒ 点它 ⇒ ⇒ `ttsService.speak(text, { lang, force: true })`。❷ 强制出声成功后 ⇒ ⇒ 那句「已跳过」提示**消失**（不然用户以为没点动）。❸ i18n 新键 `conversation.speakAnyway`（中英各一份）。❹ ⚠️ **既有判据的口径没变**：普通那条路仍逐字断言 `speak(text, { lang })` ⇒ ⇒ **不许**给普通路径也塞上 `force: false`（那会让既有判据失真）。
+
+⑤ **⚠️ 途中一格（这一刀自己踩出来的）** —— **替身的返回值形状必须与真接口一致**：`ttsService.speak` 的替身要回 `{ spoke, skippedMuted }` ⇒ ⇒ 回 `undefined` ⇒ ⇒ 按钮读 `result.skippedMuted` 会炸 ⇒ ⇒ **假替身比假断言更早露馅**。⇒ ⇒ 这一刀新加的判据**逐字**断言 `toHaveBeenLastCalledWith('任何文本', { lang: 'zh-CN', force: true })` ⇒ ⇒ 因为「按钮看着能点、实际还是没声」是**失败长得像成功**那一族 ⇒ ⇒ 参数形状必须钉住。
+
+⑥ **✅ 判据与读数** —— ❶ **新增 2 条**：`tts.test.ts`（**force ⇒ 探针压根不被问** ＋ 照常合成 ＋ `skippedMuted == false`）／ `MessageSpeakButton.test.tsx`（被跳过 ⇒ 出现「仍要朗读」⇒ 点它 ⇒ **逐字**带 `force: true` ⇒ ⇒ 成功后提示消失）。❷ **变异当场红**：把 `if (!opts.force)` 改成 `if (true)` ⇒ ⇒ **1 条红**，逐字是 `expected "spy" to not be called at all, but actually been called 1 times` ⇒ ⇒ 判据承重（不是「跑过就算」）。❸ **读数**：vitest **37 过 / 0 红**（上一刀 35 ⇒ ⇒ 本刀净增 2）＋ `tsc --noEmit` **0 问题**。
+
+⑦ **⚠️ 仍然欠着的** —— ❶ **桌面端没有 quiet-mode 那一档** ⇒ ⇒ 「静音模式也不需要 tts」在桌面端**不成立**（Windows／macOS 没有系统级响铃静音档）⇒ ⇒ 那一档**只在 Android 侧**。❷ **macOS 那格只过了类型检查**（`cargo check` 在 Windows 上**编不到** macOS 分支）⇒ ⇒ 真机未验 ⇒ ⇒ 若它编不过，**macOS 构建会红**（风险在这一句里）。❸ **Linux 仍是「查不到」** ⇒ ⇒ 那一档**白烧算力**（但绝不吞声音）—— **故意**的取舍。❹ **兜底 `waveOutGetVolume` 没在本机走过**（COM 端点那一路先成功了）⇒ ⇒ 兜底路径未验。❺ **只查默认输出设备** ⇒ ⇒ 用户在音量混合器里**单独静音某个应用**，探针查不到 ⇒ ⇒ 那一格仍会白烧（**漏检只浪费算力，不吞声音**）。❻ **端脑/neuron 仓零改动** ⇒ ⇒ 省的是「**那一发合成**」，**不是**「模型常驻」。❼ 真 CI 待取（本仓未推远端）。
+
+⑧ **⚠ 圈码：本条占 U+3332（㌲）** —— 插前**逐字扫全部账本**（`C:\Projects\iBLOC` 下 Depth 3 的每一本 `AGENTS.md`）⇒ ⇒ U+3558／3559／3332 **各 0 处** ⇒ ⇒ 取 **U+3558**（父仓）／ **U+3559**（移动端）／ **U+3332**（桌面端）⇒ ⇒ 三本**互不相同**（R1′ 跨账本不撞号）⇒ ⇒ ⚠️ 桌面端这枚**不是** `--next` 给的 332C ⇒ ⇒ 逐字扫出来 332C／332D／332E／332F／3330／3331／3333 **全部已被端脑或父仓占掉**（端脑账本占了 332C–3330，父仓账本占了 3331／3333）⇒ ⇒ 只有 **3332** 空着 ⇒ ⇒ **官方候选当线索，真判据是自己扫**。字形由 `String.fromCodePoint()` 生成，不手打。
+
+**Updated**: 2026-11-16 (㌫ **「桌面端那一声**也不合成** —— 设备静音 ⇒ 省一次 TTS 算力」** —— 承影仓 U+3556 条（设备静音 ⇒ 不合成那一族），本条记**桌面端这一侧的落点**、**途中一格**、**判据与读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3556 条（设备静音 ⇒ 不合成 TTS）｜ 改动：`src-tauri/src/device_audio.rs` **新** ＋ `src-tauri/src/lib.rs` ＋ `src-tauri/Cargo.toml` ＋ `src/lib/deviceAudio.ts` **新** ＋ `src/lib/tts.ts` ＋ `src/components/chat/MessageSpeakButton.tsx` ＋ `src/i18n/{zh-CN,en-US}.json` ＋ `src/lib/__tests__/deviceAudio.test.ts` **新** ＋ `src/lib/__tests__/tts.test.ts` ＋ `src/components/chat/__tests__/MessageSpeakButton.test.tsx` ｜ 读数：vitest **35 过 / 0 红** ＋ `tsc --noEmit` **0 问题** ＋ `cargo check --lib` **exit 0** ＋ `cargo test --lib device_audio` **9 过 / 0 红**（含**本机真读数** `{ muted: false, known: true }`）＋ 变异**当场红 2 条** ｜ 闸：影仓 U+3556 条的闸读数（**13 绿 / 9 红**，九道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none
+
+① **⚠️ 取证：桌面端这一侧「谁在出声」** —— ❶ **只有手动按钮**：`MessageSpeakButton` 是**唯一**调 `ttsService.speak` 的地方（逐字扫 `src/`）⇒ ⇒ 桌面端**没有**自动朗读 ⇒ ⇒ 这一侧省得比移动端少，但**用户点了也不该白烧**。❷ 那一发是 OpenAI 兼容的 **`/v1/audio/speech`** ⇒ ⇒ **一次请求＝一次模型合成** ⇒ ⇒ 静音时不该发。❸ **兜底腿**（Web Speech API）是**系统本地**声音（零算力）⇒ ⇒ 但静音时**同样没人听得见** ⇒ ⇒ 一并跳过。❹ **网页版没有系统音量 API** ⇒ ⇒ 那一格是「查不到」⇒ ⇒ 行为与今天**逐字一致**。
+
+② **✅ 落点 A：Rust 探针（三态，零新增依赖）** —— `src-tauri/src/device_audio.rs`（**新**）⇒ ⇒ 命令 `device_audio_state`（**异步**：COM 初始化 + 跨进程查询要几毫秒 ⇒ ⇒ 同步命令会占住主线程）⇒ ⇒ 回 `{ muted, known }`。❶ **Windows**：COM **端点音量**（`IAudioEndpointVolume`：`GetMute` 拿**托盘静音**那个真开关 ＋ `GetMasterVolumeLevelScalar` 拿主音量标量）⇒ ⇒ ⚠️ **COM 必须先在本线程初始化**（Tauri 的命令跑在 tokio 工作线程上 ⇒ ⇒ 那些线程**没有** COM apartment ⇒ ⇒ 不初始化就 `CoCreateInstance` ⇒ ⇒ 直接 `CO_E_NOTINITIALIZED`，探针静默失效）；兜底 `waveOutGetVolume`（只看得到滑块）。❷ **macOS**：CoreAudio 默认输出设备（`mute` ＋ `volm`）。❸ **其它**：**查不到**（Linux 上 PulseAudio/PipeWire/ALSA 各有各的协议，零依赖读不出来）⇒ ⇒ 如实说「查不到」，不猜。❹ **规则只有一份**（`decide_muted`，纯函数 ⇒ ⇒ 可测）⇒ ⇒ 同一规则写两份实现 ⇒ ⇒ 变异只打掉一份时另一份会把断言喂饱（假绿教训）。❺ ⚠️ **零新增依赖**：`windows` 本来就是本仓的直接依赖 ⇒ ⇒ 只加 3 个 **feature**（`Win32_Media_Audio` ／ `Win32_Media_Audio_Endpoints` ／ `Win32_System_Com`）⇒ ⇒ **Cargo.lock 逐字未变**（sha256 `F6CC49FE…`，本刀前后同值）。
+
+③ **✅ 落点 B：TS 侧跳过（一次都不发）** —— `src/lib/deviceAudio.ts`（**新**）⇒ ⇒ `probeDeviceAudio()` 用 `safeInvoke` ⇒ ⇒ **网页版自动落回「查不到」**（不抛、不猜）。`src/lib/tts.ts` ⇒ ⇒ `speak()` 最前面查探针 ⇒ ⇒ 静音 ⇒ ⇒ **`openaiClient.speech` 一次都不调** ⇒ ⇒ 连 Web Speech 兜底也不走 ⇒ ⇒ 零算力。⚠️ **「查不到」不跳** ⇒ ⇒ 宁可多合成一次，也绝不静默吞掉声音。
+
+④ **✅ 落点 C：跳过要看得见** —— `MessageSpeakButton.tsx` ⇒ ⇒ 静音跳过时按钮旁出提示（`role="status"` ＋ `data-testid="message-speak-skipped"`）⇒ ⇒ 点了朗读却毫无动静又不一声 ⇒ ⇒ 就是「失败长得像成功」。⇒ ⇒ 提示**只挂一次**（没静音时**不许**一直挂着一句）。
+
+⑤ **⚠️ 途中一格（这一刀自己踩出来的）** —— **`speak()` 的返回值口径变了**：从 `Promise<void>` 改成回 `TtsSpeakResult`（`{ spoke, skippedMuted }`）⇒ ⇒ 既有一条判据断言的是 `resolves.toBeUndefined()` ⇒ ⇒ 改成断言**真形状**（`{ spoke:false, skippedMuted:false }`）⇒ ⇒ 改口径≠ 降标准（新判据**更狠**：静音时**合成请求必须一次都没有**）⇒ ⇒ ⚠️ 替身的返回值形状也必须跟着改（替身回 `undefined` ⇒ ⇒ 按钮读 `result.skippedMuted` 会炸）⇒ ⇒ **假替身比假断言更早露馅**。
+
+⑥ **✅ 判据与读数** —— ❶ **Rust 9 条**（`device_audio.rs` 内）：静音标志压过一切 ／ 主音量为 0 ⇒ 静音 ／ **「几乎为 0」也算静音**（浮点量化过 ⇒ ⇒ 漏检＝白烧算力）／ 有声 ⇒ 不静音 ／ **两样都没查到 ⇒ unknown（不是 unmuted）** ／ 三态构造 ／ **探针不许自己造出静音** ／ **本机真读数**（跑**真 COM**，不是打桩）。❷ **TS 12 条**：静音 ⇒ **合成请求 0 次** ＋ **Web Speech 0 次** ＋ 结果 `{spoke:false, skippedMuted:true}` ／「查不到」⇒ 照常合成 ／ 有声 ⇒ 照常合成 ／ **静音 ⇒ 连兜底腿都不走** ／ 探针四种降级（网页版／形状不认识／invoke 抛了 ⇒ 一律「查不到」）／ 按钮**看得见**跳过提示 ／ 没静音 ⇒ **不许一直挂着一句**。❸ **变异当场红**：把静音判定改成「永不跳过」⇒ ⇒ **2 条红**，逐字是 `expected "spy" to not be called at all, but actually been called 1 times` ⇒ ⇒ 判据承重。❹ **读数**：vitest **35 过 / 0 红** ＋ `tsc --noEmit` **0 问题** ＋ `cargo check --lib` **exit 0**（**零新增告警**：本仓那 1 条是**存量**的 `brain_face_base`）＋ `cargo test --lib device_audio` **9 过 / 0 红**（**本机真读数**：`[device_audio] 本机读数 = DeviceAudioState { muted: false, known: true }` ⇒ ⇒ COM 那一路在本机**真的查得到**，不是打桩）。
+
+⑦ **⚠️ 仍然欠着的** —— ❶ **macOS 那格只过了类型检查**（`cargo check` 在 Windows 上**编不到** macOS 分支）⇒ ⇒ 真机未验 ⇒ ⇒ 若它编不过，**macOS 构建会红**（风险在这一句里）。❷ **Linux 仍是「查不到」** ⇒ ⇒ 那一档**白烧算力**（但绝不吞声音）—— **故意**的取舍。❸ **兜底那格（`waveOutGetVolume`）没在本机走过**（COM 端点那一路先成功了）⇒ ⇒ 兜底路径未验。❹ **只查默认输出设备** ⇒ ⇒ 用户在音量混合器里**单独静音某个应用**，探针查不到 ⇒ ⇒ 那一格仍会白烧（漏检只浪费算力，不吞声音）。❺ **端脑/neuron 仓零改动** ⇒ ⇒ 省的是「**那一发合成**」，**不是**「模型常驻」。❻ 真 CI 待取（本仓未推远端）。
+
+⑧ **⚠ 圈码：本条占 U+332B（㌫）** —— 插前**逐字扫七本账本**（父仓 ＋ 移动端 ＋ 桌面端 ＋ src-tauri ＋ mobile/lib ＋ desktop/src ＋ mobile/android kotlin）⇒ ⇒ U+332B **0 处** ⇒ ⇒ 取 **U+332B**（桌面端自己的编号段；与父仓 U+3556、移动端 U+3557 **互不相同** ⇒ ⇒ R1′ 跨账本不撞号）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
+**Updated**: 2026-11-16 (㌪ **「供应商页那处模型行也显示模态 —— 覆盖面补齐：模型管理页 ＋ 供应商页」** —— 承影仓 U+3543 条（输入格式收口那族），本条记**落点**、**判据与读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3543 条（输入格式收口那族）｜ 改动：`src-tauri/src/provider_manager.rs`（`entries_from_brain` 透传两字段）＋ `src/pages/ProvidersPage.tsx`（`ModelSummary` 接口补两字段 ＋ 模型类型行渲染 `<ModelInputModalities>`）＋ `src/pages/__tests__/ProvidersPage.inputModalities.test.tsx`（**新**，2 条判据）⇒ ⇒ **3 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：桌面端全量 **192 文件 / 1679 用例过 / 0 红 / 16 跳**（上一刀 191／1677 ⇒ ⇒ ＋1 文件 ＋2 用例）＋ `tsc --noEmit` **0 错** ＋ `src-tauri` `cargo check` **通过**（⚠️ 需 `RUST_MIN_STACK=67108864` ⇒ ⇒ 见 ③）| status=active | supersedes=none
+
+① **⚠️ 落点：三处缺一不可** —— ❶ **Tauri 层要透传**：`src-tauri/src/provider_manager.rs` 的 `entries_from_brain` 从端脑响应里取模型清单 ⇒ ⇒ 不透传 ⇒ ⇒ Tauri 这层的 `ModelSummary` 里**根本没有模态字段** ⇒ ⇒ 前端再对也画不出来（**这才是上一刀那格「供应商页还没显示模态」的真正堵点**，不是前端漏画）。❷ **页面接口补字段**：`src/pages/ProvidersPage.tsx` 的 `ModelSummary` 补 `input_modalities`／`input_modalities_source` ⇒ ⇒ 不用 `any` 糊过去。❸ **复用组件**（不另写一遍）：模型类型行渲染 `<ModelInputModalities>` ⇒ ⇒ 徽章 ＋ 来源进 `title` 的行为**与模型管理页一致** ⇒ ⇒ 两页不会漂。
+
+② **✅ 判据与读数** —— ❶ 新判据 `src/pages/__tests__/ProvidersPage.inputModalities.test.tsx` **2 条**：❶ 模型行**渲染出模态徽章**（`text / image / video`）**且来源进 `title`**（不许只给最终值 ⇒ ⇒ 「上游给的」与「我们按文档预设的」不许长得一样）；❷ **老数据没这个字段 ⇒ 不画徽章**（空 ＝ **不知道**，**不是**「只能吃文本」⇒ ⇒ 不骗人）⇒ ⇒ 两条都在**页面层**（不是组件层）⇒ ⇒ 钉的是「这一页真的接上了」。❷ 桌面端全量 **192 文件 / 1679 用例过 / 0 红 / 16 跳** ＋ `tsc --noEmit` **0 错**。
+
+③ **⚠️ 途中一格：`src-tauri` 的 `cargo check` 先崩在**rustc 自己**身上** —— 首跑 exit `0xc0000409`（`STATUS_STACK_BUFFER_OVERRUN`）⇒ ⇒ 栈帧落在 `rustc_trait_selection`／`rustc_hir_analysis` ⇒ ⇒ **不是本刀代码的问题**（本刀那处只多透传两个字段）⇒ ⇒ 负控：**加 `RUST_MIN_STACK=67108864` 重跑** ⇒ ⇒ **通过**（`Checking shadow-desktop v0.1.0` ⇒ ⇒ `Finished dev profile in 1m 15s`）⇒ ⇒ **环境不是代码**（与 synapse 那条 502 同款：先分清环境还是代码，别照着猜想改）。
+
+④ **⚠️ 仍然欠着的** —— ❶ **真桌面那一格没跑**（判据是页面级 ⇒ ⇒ 真机上供应商页模型行旁边那个徽章长什么样**没看过**）⇒ ⇒ 「组件接上了」≠「用户看得见」。❷ **真上游读数缺**（端脑那侧判据全用假上游）⇒ ⇒ 真供应商那份清单的模态**没在真上游验过**。❸ 真 CI 待取（本刀未推远端）。
+
+⑤ **⚠ 圈码：本条占 U+332A（㌪）** —— 官方脚本给的候选是 **U+3329**（桌面端工作树面水位 U+3328）⇒ ⇒ 但 **U+3329 已被端脑那条在飞条目占着**（逐字扫命中 2 处）⇒ ⇒ 「落笔以提交树面为准」**≠** 可以不看别的账本 ⇒ ⇒ 逐字扫五本账本（父仓 ＋ 移动端 ＋ 桌面端 ＋ synapse ＋ 端脑）的 U+331E..U+3340 字形命中 ⇒ ⇒ U+3329 = 2 ／ **U+332A = 0** ⇒ ⇒ 取 **U+332A**。字形由 `String.fromCodePoint(0x332A)` 生成，不手打。
+
+**Updated**: 2026-11-16 (㌨ **「桌面这一侧也要说清每条模型吃什么输入、那份模态是从哪来的」** —— 承影仓 U+3543 条（输入格式收口成一份真源），本条记**落点**、**判据**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3543 条｜ 改动：src/components/business/ModelInputModalities.tsx（**新**）＋ src/pages/ModelsPage.tsx（模型行接上）＋ src/lib/telencephalonClient.ts ＋ src/components/business/AddProviderModal/types.ts（两个类型补字段）＋ src/i18n/zh-CN.json ＋ en-US.json（各 5 键）＋ src/components/business/__tests__/ModelInputModalities.test.tsx（**新**，3 条判据）⇒ ⇒ **7 个文件** ＋ 零新增依赖 ｜ 读数：桌面端全量 **191 文件 / 1677 用例过 / 0 红 / 16 跳**（＋1 文件 ＋3 用例）＋ tsc --noEmit **0 错** ＋ 父仓 i18n 闸 **1064/1064 零问题**（zh 1602 / en 1602） | status=active | supersedes=none
+
+① **⚠️ 为什么单独抽一个组件** —— 「吃什么」与「从哪来」要在**两处**用（模型管理页的模型行 ＋ 将来的供应商页模型行）⇒ ⇒ 两处各写一遍 ⇒ ⇒ 迟早漂 ⇒ ⇒ 收成一个组件；徽章显示模态词（`text / image`），**来源进 `title`**（悬停可见）⇒ ⇒ 不占版面但**说得清**。
+
+② **✅ 落点** —— ❶ 新组件 `ModelInputModalities.tsx`：无模态 ⇒ **什么都不画**（老数据没这个字段 ⇒ ⇒ 不许画空徽章）；来源三种（上游／官方文档预设／默认）⇒ ⇒ 三种话不同。❷ 模型管理页的模型行接上（`models.input_modalities` ＋ `models.input_modalities_source`）⇒ ⇒ 顺手把「视觉」徽章的口径修好（端脑现在按**模态**推 ⇒ ⇒ 那个徽章终于会亮）。❸ 两份词表各 5 键（zh/en 都写）⇒ ⇒ 父仓那道 i18n 闸不红（它要求**被引用键在两份词表里都有值**）。
+
+③ **✅ 判据与读数** —— ❶ 新组件判据 **3 条**：显示模态 ＋ **来源进 title**（不许只给最终值）＋ 三种来源显示不同的话 ＋ 没模态就不画。❷ 桌面端全量 **191 文件 / 1677 用例过 / 0 红 / 16 跳**（比上轮 ＋1 文件 ＋3 用例）＋ `tsc --noEmit` **0 错** ＋ 父仓 i18n 闸 **1064/1064 零问题**。
+
+④ **⚠️ 仍然欠着的** —— ❶ **供应商页**那处模型行还没显示模态（只有模型管理页有）⇒ ⇒ 组件已抽好 ⇒ ⇒ 接上是「一行」的活。❷ **真桌面那一格没跑**（判据是组件级 ⇒ ⇒ 真机上模型行旁边那个徽章长什么样没看过）。❸ 两端**供应商页**的覆盖面暂不齐（手机有、桌面没有）。
+
+⑤ **⚠ 圈码：本条占 U+3328（㌨）** —— 插前**逐字扫五本账本**（父仓 ＋ 移动 ＋ 桌面 ＋ synapse ＋ 端脑）的字形命中 ⇒ ⇒ 取 **U+3328**（五本皆 0 命中）⇒ ⇒ 字形由 `String.fromCodePoint(0x3328)` 生成，不手打。
+
+**Updated**: 2026-11-16 (㌦ **「供应商卡片要说出这份模型清单是『实时拉的』还是『按官方文档预设的』」** —— 承影仓 U+3541 条（云供应商里 MiniMax 三四条 ＋ 「拉不到可用模型」那一格），本条记**落点**、**判据**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3541 条｜ 改动：src/pages/ProvidersPage.tsx（`ProviderEntry` 加 `models_source` ＋ 卡片上标出「按官方文档预设」＋ 图标导入加 `FileText`）＋ src/i18n/zh-CN.json ＋ en-US.json（各 1 键 `providers.modelsFromDocs`）＋ src/pages/__tests__/ProvidersPage.modelsSource.test.tsx（**新**，3 条判据）＋ 本条 ⇒ ⇒ **5 个文件** ＋ 零新增依赖 ｜ 读数：桌面端全量 **190 文件 / 1674 用例过 / 0 红 / 16 跳**（比上轮 +1 文件 +3 用例）＋ tsc --noEmit **0 错** ＋ 父仓 i18n 闸 **1063/1063 零问题**（词表 zh 1597 / en 1597 对齐） | status=active | supersedes=none
+
+① **⚠️ 为什么要标出来** —— 同影仓 U+3541 条：端脑在「上游没有『模型列表』这个接口」时会顶上**按官方文档预设的清单**⇒ ⇒ 界面不说 ⇒ ⇒ 用户以为「拉通了」⇒ ⇒ 「失败长得像成功」。
+
+② **✅ 落点** —— ❶ `ProviderEntry` 加 `models_source?: string`（与端脑那条 `models_source` 逐字对齐）❷ 卡片上「上次更新」那行下面加一行（琥珀色 ＋ `FileText` 图标）「这份清单按官方文档预设（不是实时拉的）」⇒ ⇒ 只在 `models_source === 'preset'` 时出现 ⇒ ⇒ 实时拉的那份**不标**。❸ 两份词表各 1 键（zh/en 都写）⇒ ⇒ 父仓那道 i18n 闸不红（它要求**被引用键在两份词表里都有值** ⇒ ⇒ 只加中文会判红）。
+
+③ **✅ 判据（新文件 3 条）** —— ❶ 「按文档预设」⇒ ⇒ 界面标出来；❷ 「实时拉的」⇒ ⇒ 不标；❸ 老数据没这字段 ⇒ ⇒ 不标（「不知道来源」时不许乱标）。
+
+④ **⚠️ 仍然欠着的** —— ❶ **真机那一格**：读数是**宿主跑 vitest**，真机上「刷新模型」后那行字未验。❷ 桌面端那**三份本地旧清单**（`src/lib/cloudProviders.ts` ＋ `src/pages/ModelsPage.tsx` ＋ `src/pages/SetupPage.tsx` 各抄一份 `DEFAULT_API_BASE` ＋ 类型表）**还在**⇒ ⇒ 它们与大脑目录**各说各话**（哪些供应商在目录里都不一样）⇒ ⇒ 「一个真相源」那笔老账本刀**没销**（只钉住了 MiniMax 那两行的值，既有闸 `cloudProviders.test.ts` 仍绿）。❸ 端脑那条兜底**只按预设 id 生效**⇒ ⇒ 自定义供应商（没有预设）拉不到时**照旧失败**（不糊弄）⇒ ⇒ 这是有意的。
 
 **Updated:** 2026-11-11 (㌡ **「下拉『选项』黑底黑字 —— 弹层是原生控件，而页面从来没告诉它自己处于什么主题」** —— 承「失败长得像成功」族（下拉看起来像『主题坏了』，实际是**两套配色系统各画各的**），本条记**取证（三份 CSS ＋ 全仓 9 处原生 select 逐处读数 ＋ 主题挂载点）**、**第一因（原生弹层不读 CSS 变量，color-scheme 全仓零声明）**、**第二因（6 处 select 无显式文字色 ⇒ 可读性挂在 body 继承链上）**、**落点（三层修法）**、**全应用同类扫描清单**，以及**仍然欠着的**。)
 

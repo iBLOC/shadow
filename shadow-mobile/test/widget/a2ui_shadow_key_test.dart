@@ -3,8 +3,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shadow_mobile/services/genui/gen_ui_agent_service.dart';
-import 'package:shadow_mobile/services/genui/shadow_catalog.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart' as http_testing;
+import 'package:shadow_mobile/services/a2ui/a2ui_agent_service.dart';
+import 'package:shadow_mobile/services/a2ui/shadow_key_sse_transport.dart';
+
+import '../support/a2ui_fixture.dart';
 
 /// **端脑面的钥匙**真的被 A2UI 请求带出去了吗？
 ///
@@ -12,16 +16,15 @@ import 'package:shadow_mobile/services/genui/shadow_catalog.dart';
 ///
 /// 端脑的 `/a2a` 现在**要钥匙**（`telencephalon/src/api/a2ui_gateway.rs`
 /// —— 它会把任务标题、agent 名字渲染成界面吐出来 ⇒ 是数据面）。
-/// 而 A2UI 客户端的默认 connector 把请求头**焊死**在
-/// `a2ui_agent_connector.dart:36-40` 里面 ⇒ 外面根本加不了钥匙。
+/// 而官方 A2UI SDK **没有**传输层（只有协议栈）⇒ ⇒ 这一层归我们自己
+/// （`services/a2ui/shadow_key_sse_transport.dart`）。
+/// 而「自己造」最容易漏掉三件事：
 ///
-/// ⇒ 只能自己造 transport（`services/genui/shadow_key_sse_transport.dart`）。
-/// 而「自己造」最容易漏掉两件事：
-///
-/// 1. **`X-Shadow-Key` 忘了带** ⇒ 真机上是 401，而且**界面上什么都不显示**
-///    （`A2uiContentGenerator` 的错误只进 `errorStream`）。
+/// 1. **`X-Shadow-Key` 忘了带** ⇒ 真机上是 401，而且**界面上什么都不显示**。
 /// 2. **`X-A2A-Extensions` 忘了带** ⇒ 服务端认不出这是 A2UI 请求
-///    （A2UI 协议常量，`a2ui_agent_connector.dart:39`）。
+///    ⇒ ⇒ **它会回旧形状（v0.8）** ⇒ ⇒ 界面画不出来。
+/// 3. **空值也把头带出去** ⇒ 空串头与「没这个头」在门那边**等价**
+///    ⇒ ⇒ 等于把门骗开。
 ///
 /// ## 这条测试还钉住「钥匙是请求时现读」
 ///
@@ -34,24 +37,76 @@ import 'package:shadow_mobile/services/genui/shadow_catalog.dart';
 /// ⇒ 这里让钥匙**一开始是空的、后来才有**，两次请求分别断言：
 /// 第一次没有这个头、第二次有 —— 证明钥匙确实是**发请求那一刻**读的。
 void main() {
+  test('传输层：空值**不下发**，协议常量头**不能少**', () async {
+    // ⚠️ 这一层**不碰真网络** —— 注入假 client ⇒ 只验「头带得对不对」。
+    final sent = <http.BaseRequest>[];
+    final mock = http_testing.MockClient((request) async {
+      sent.add(request);
+      return http.Response(
+        '',
+        200,
+        headers: const {'content-type': 'text/event-stream'},
+      );
+    });
+
+    var key = '';
+    var admin = '';
+
+    // ⚠️ provider 是**回调** ⇒ ⇒ 要能在**请求那一刻**变
+    //    （这正是「地址先到、钥匙后到」那个窗口的根治办法）。
+    final live = ShadowKeySseTransport(
+      url: 'http://127.0.0.1:60080/a2a',
+      shadowKeyProvider: () => key,
+      adminTokenProvider: () => admin,
+      localeProvider: () => 'zh',
+      client: mock,
+    );
+    await live.sendStream(<String, Object?>{'ping': true}).toList();
+
+    // ❌ 空钥匙 ⇒ **不带**这个头（空串与「没这个头」在门那边等价）。
+    expect(sent.single.headers.containsKey('x-shadow-key'), isFalse);
+    expect(sent.single.headers.containsKey('x-admin-token'), isFalse);
+    // ✅ 协议常量头（**v1.0**）不能少 —— 少了端脑会回旧形状。
+    expect(
+      sent.single.headers['x-a2a-extensions'],
+      'https://a2ui.org/a2a-extension/a2ui/v1.0',
+    );
+    // ✅ 语言也要带上。
+    expect(sent.single.headers['accept-language'], 'zh');
+    live.close();
+
+    // 钥匙到了 ⇒ 必须带上。
+    key = 'the-real-key';
+    admin = 'the-real-admin';
+    sent.clear();
+    final live2 = ShadowKeySseTransport(
+      url: 'http://127.0.0.1:60080/a2a',
+      shadowKeyProvider: () => key,
+      adminTokenProvider: () => admin,
+      client: mock,
+    );
+    await live2.sendStream(<String, Object?>{'ping': true}).toList();
+    expect(sent.single.headers['x-shadow-key'], 'the-real-key');
+    expect(sent.single.headers['x-admin-token'], 'the-real-admin');
+    live2.close();
+  });
+
   test('A2UI 请求带上端脑面的钥匙，且钥匙是「请求时现读」', () async {
     // ⚠️ 测试框架默认把**所有** HTTP 请求打成 400
     // （`TestWidgetsFlutterBinding` 的 `_MockHttpOverrides`）⇒ 必须放开。
     HttpOverrides.global = null;
 
-    // 回放端脑的**真实** SSE 字节 ⇒ 客户端会真的把它消费掉
-    // （消费完才有「surface 出现」这个信号 ⇒ 可以确定地等到
+    // 回放端脑那种 **v1.0** 的 SSE 字节 ⇒ 客户端会真的把它消费掉
+    // （消费完才有「这一轮结束了」这个信号 ⇒ 可以确定地等到
     // 「请求已经结束」，dispose 才不会踩到还在飞的流）。
-    final sse = _readSseFixture();
+    final sse = conformantTasksSse();
 
     final arrivals = <Completer<void>>[];
     final seenShadowKeys = <String?>[];
-    final seenExtensions = <String?>[];
 
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
       seenShadowKeys.add(request.headers.value('x-shadow-key'));
-      seenExtensions.add(request.headers.value('x-a2a-extensions'));
       request.response.headers.contentType =
           ContentType('text', 'event-stream', charset: 'utf-8');
       // ⚠️ **写字节，不写字符串**：`HttpResponse.write(String)` 默认按
@@ -66,30 +121,19 @@ void main() {
 
     // 模拟真实时序：**地址先到、钥匙后到**。
     var key = '';
-    final service = GenUIAgentService(
+    final service = A2uiAgentService(
       serverUrl: 'http://${server.address.address}:${server.port}/a2a',
-      catalog: ShadowCatalog.create(),
       shadowKeyProvider: () => key,
     );
-
-    // 「客户端已消费完这份响应」的信号 —— 每份响应都会带来一次
-    // `beginRendering` ⇒ 一次 `SurfaceAdded` ⇒ 一次 surface 列表更新。
-    var surfacesSeen = 0;
-    // ⚠️ **只把非空的更新算作「端脑这次画了界面」** ——
-    // 空列表 = 「这一轮开始了，上一轮被清掉」（`sendMessage` 会先清空）
-    // ⇒ 拿它当「响应消费完了」会**提前 dispose** ⇒ 在飞的流报错 ⇒ 偶发红。
-    // （判据见 `a2ui_surface_reset_test.dart`）
-    final subscription = service.surfaceIdsStream.listen((ids) {
-      if (ids.isEmpty) return;
-      surfacesSeen++;
-    });
 
     // 第一次：还没钥匙 ⇒ **不带**这个头。
     final first = Completer<void>();
     arrivals.add(first);
     service.sendMessage('我的任务');
     await first.future.timeout(const Duration(seconds: 10));
-    await _waitUntil(() => surfacesSeen >= 1);
+    await _waitUntil(
+      () => service.connectionStatus == ConnectionStatus.connected,
+    );
 
     // 第二次：钥匙到了 ⇒ **必须带上**。
     key = 'the-real-key';
@@ -97,7 +141,9 @@ void main() {
     arrivals.add(second);
     service.sendMessage('我的任务');
     await second.future.timeout(const Duration(seconds: 10));
-    await _waitUntil(() => surfacesSeen >= 2);
+    await _waitUntil(
+      () => service.connectionStatus == ConnectionStatus.connected,
+    );
 
     expect(
       seenShadowKeys,
@@ -116,17 +162,7 @@ void main() {
           '「指着新地址、却还没带钥匙」的窗口 ⇒ 401',
     );
 
-    // A2UI 协议常量头也不能少（自己造 transport 时最容易漏）。
-    for (final extension in seenExtensions) {
-      expect(
-        extension,
-        'https://a2ui.org/a2a-extension/a2ui/v0.8',
-        reason: '自己造 transport 时必须补上 X-A2A-Extensions',
-      );
-    }
-
-    await subscription.cancel();
-    service.dispose();
+    await service.dispose();
     await server.close(force: true);
   });
 }
@@ -138,24 +174,4 @@ Future<void> _waitUntil(bool Function() predicate) async {
     await Future<void>.delayed(const Duration(milliseconds: 50));
   }
   throw StateError('等待超时（10 秒）');
-}
-
-/// 读端脑导出的 SSE fixture。
-String _readSseFixture() {
-  const relative = 'fixtures/a2ui/tasks_sse.txt';
-  final candidates = <File>[
-    File('../$relative'),
-    File('../../$relative'),
-    File(relative),
-  ];
-  for (final candidate in candidates) {
-    if (candidate.existsSync()) {
-      return candidate.readAsStringSync();
-    }
-  }
-  throw StateError(
-    '找不到 SSE fixture。试过：'
-    '${candidates.map((f) => f.path).join(' | ')}'
-    '（当前工作目录 ${Directory.current.path}）',
-  );
 }

@@ -8,6 +8,7 @@ import 'package:shadow_mobile/services/capabilities/sensitive_packages.dart';
 import 'package:shadow_mobile/services/client_tools/client_tool_registry.dart';
 
 import 'agui_fakes.dart';
+import '../support/a2ui_fixture.dart';
 
 void main() {
   /// 对话流里最后那张工具卡片。
@@ -719,27 +720,12 @@ void main() {
             executed.add(args);
             return <String, dynamic>{
               'report': '已展开「任务看板」。',
-              'a2ui_events': [
-                <String, Object?>{
-                  'result': <String, Object?>{
-                    'kind': 'task-status-update',
-                    'status': <String, Object?>{
-                      'message': <String, Object?>{
-                        'parts': <Object?>[
-                          <String, Object?>{
-                            'kind': 'data',
-                            'data': <String, Object?>{
-                              'beginRendering': <String, Object?>{
-                                'surfaceId': 'shadow.tasks',
-                                'root': 'root',
-                              },
-                            },
-                          },
-                        ],
-                      },
-                    },
-                  },
-                },
+              // ⚠️ **v1.0 的形状** —— 载荷在 `parts[].data` 里**是对象**，
+              //    消息键是 `createSurface`（v0.8 那个 `beginRendering`
+              //    「渲染门」在 v1.0 里**已经没了**）
+              //    ⇒ ⇒ 「画得出」只认「有 createSurface」这件事。
+              'a2ui_events': <Map<String, Object?>>[
+                a2aEventOf(conformantTasksMessage()),
               ],
             };
           },

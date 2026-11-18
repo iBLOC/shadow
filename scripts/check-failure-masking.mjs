@@ -253,13 +253,6 @@ export const KNOWN_DEBT = [
   },
   {
     repo: 'shadow-mobile',
-    file: 'lib/screens/voice_conversation_screen.dart',
-    kind: 'D1',
-    why: '同 customer_service_screen。',
-    when: '同上。',
-  },
-  {
-    repo: 'shadow-mobile',
     file: 'lib/services/audio_ws_service.dart',
     kind: 'D1',
     why: '单条**非 JSON** 消息跳过（那条转写丢了，其余照常）⇒ ⇒ 不是把整条会话说成成功。',

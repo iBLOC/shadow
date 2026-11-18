@@ -91,18 +91,46 @@ class CapabilityDefaultSection extends ConsumerWidget {
             for (final entry in candidates.entries)
               entry.key: [for (final o in entry.value) o.id],
           },
+          served: view.served,
         );
+        // ⚠️ **「用不了」有两种原因**（2026-11-16）—— 分开说，不许混成一句：
+        // ① 端脑**不服务**这一档（词表里有、背后没有调用入口 ⇒ 视频那一档）；
+        // ② 端脑服务这一档、但那个模型 id **还没注册**。
+        // ⇒ ⇒ 混成一句 ⇒ 用户以为「注册一下引擎就好了」⇒ ⇒ 对视频那一档来说
+        // 那是不可能的（端脑整条链没有视频生成端点）。
+        final unserved = unusable
+            .where((u) => !isServedCapability(u.capability, view.served))
+            .toList();
+        final notRegistered = unusable
+            .where((u) => isServedCapability(u.capability, view.served))
+            .toList();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (unusable.isNotEmpty) ...[
+            if (unserved.isNotEmpty) ...[
+              Text(
+                l10n.capabilityDefaultsUnservedNow,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
+              for (final u in unserved)
+                Text(
+                  '${catalogCapabilityLabel(l10n, u.capability)} · ${u.modelId}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              const SizedBox(height: 8),
+            ],
+            if (notRegistered.isNotEmpty) ...[
               Text(
                 l10n.capabilityDefaultsUnusableNow,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.error,
                 ),
               ),
-              for (final u in unusable)
+              for (final u in notRegistered)
                 Text(
                   '${catalogCapabilityLabel(l10n, u.capability)} · ${u.modelId}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(

@@ -625,7 +625,9 @@ class _ConversationCard extends StatelessWidget {
 /// **失败长得像成功** —— 而且它**不报错**，没人会发现。
 ///
 /// 同族的坑：A2UI 那面「空 surface / 纯文本 / 失败」曾经也被并成两种
-///（见 a2ui_answer_state.dart 的三态判定）。同一个病，两处。
+///（三态判定住在那块**独立面板**里 —— ⚠️ 那块面板已于 2026-11-18 下线，
+/// ⇒ ⇒ A2UI 的面现在**内联在对话消息里**，这个坑**不再有承载面**）。
+/// 同一个病，两处。
 class _ConversationLoadError extends StatelessWidget {
   /// 真实原因（端脑回的状态码 + 正文，或连接错误）。
   final String error;

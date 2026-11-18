@@ -18,7 +18,10 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../../../lib/tts', () => ({
   ttsService: {
-    speak: vi.fn(async () => undefined),
+    // ⚠️ **返回值形状要与真接口一致**（2026-11-16：`speak` 改回
+    // `TtsSpeakResult`）⇒ ⇒ 替身回 `undefined` ⇒ ⇒ 按钮读
+    // `result.skippedMuted` 会炸 ⇒ ⇒ 替身必须回真形状。
+    speak: vi.fn(async () => ({ spoke: true, skippedMuted: false })),
     stop: vi.fn(),
   },
 }));
@@ -82,6 +85,77 @@ describe('MessageSpeakButton — 朗读按钮与服务接缝', () => {
     await waitFor(() => {
       expect(btn.getAttribute('title')).toBe('conversation.speak');
     });
+  });
+
+  it('设备静音 ⇒ speak 回 skippedMuted ⇒ 界面**看得见**「已跳过」', async () => {
+    (ttsService.speak as ReturnType<typeof vi.fn>).mockResolvedValue({
+      spoke: false,
+      skippedMuted: true,
+    });
+
+    render(<MessageSpeakButton text="任何文本" />);
+    fireEvent.click(screen.getByTestId('message-speak'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('message-speak-skipped')).toBeInTheDocument();
+    });
+    // 文案走 i18n 键（测试里 `t` 直接回键名）。
+    expect(screen.getByTestId('message-speak-skipped').textContent).toBe(
+      'conversation.speakSkippedMuted',
+    );
+  });
+
+  it('被跳过了 ⇒ 旁边出现「仍要朗读」开关 ⇒ 点它 ⇒ **强制出声**（force）', async () => {
+    (ttsService.speak as ReturnType<typeof vi.fn>).mockResolvedValue({
+      spoke: false,
+      skippedMuted: true,
+    });
+
+    render(<MessageSpeakButton text="任何文本" />);
+    fireEvent.click(screen.getByTestId('message-speak'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('message-speak-anyway')).toBeInTheDocument();
+    });
+
+    // ⚠️ **前置换掉**：第二次调用要走「强制」那条路 ⇒ ⇒ 替身得回真出声
+    // ⇒ ⇒ 否则还是回 skippedMuted ⇒ ⇒ 提示不会消失（看着像没点动）。
+    (ttsService.speak as ReturnType<typeof vi.fn>).mockResolvedValue({
+      spoke: true,
+      skippedMuted: false,
+    });
+    fireEvent.click(screen.getByTestId('message-speak-anyway'));
+
+    await waitFor(() => {
+      expect(ttsService.speak).toHaveBeenCalledTimes(2);
+    });
+    // ⚠️ **force 必须逐字带上** ⇒ ⇒ 否则「仍要朗读」还是会被静音判定拦下
+    // ⇒ ⇒ 按钮看着能点、实际还是没声（失败长得像成功）。
+    expect(ttsService.speak).toHaveBeenLastCalledWith('任何文本', {
+      lang: 'zh-CN',
+      force: true,
+    });
+    // 强制出声成功了 ⇒ ⇒ 那句提示不许一直挂着。
+    await waitFor(() => {
+      expect(screen.queryByTestId('message-speak-skipped')).toBeNull();
+    });
+  });
+
+  it('没静音 ⇒ 不出现跳过提示（不许一直挂着一句）', async () => {
+    // ⚠️ **前置写死** —— `clearAllMocks` 只清调用记录、**不清实现**
+    // ⇒ ⇒ 上一条用例的「静音」实现会漏过来 ⇒ ⇒ 这一条必须自己摆好。
+    (ttsService.speak as ReturnType<typeof vi.fn>).mockResolvedValue({
+      spoke: true,
+      skippedMuted: false,
+    });
+
+    render(<MessageSpeakButton text="任何文本" />);
+    fireEvent.click(screen.getByTestId('message-speak'));
+
+    await waitFor(() => {
+      expect(ttsService.speak).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByTestId('message-speak-skipped')).toBeNull();
   });
 
   it('speak 抛（网络/门禁类不降级的错误）⇒ console.warn 出真因', async () => {

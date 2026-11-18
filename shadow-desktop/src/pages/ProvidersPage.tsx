@@ -17,11 +17,16 @@ import {
   Search,
   Circle,
   CheckCircle2,
+  FileText,
 } from 'lucide-react';
 import { Button, EmptyState, Modal, Input } from '../components/ui';
 import { cn } from '../lib/utils';
 import { telencephalonClient } from '../lib/telencephalonClient';
 import { AGENT_CAPABILITY_FALLBACK_LABELS } from '../lib/agentCapabilities';
+// ⚠️ 输入模态（2026-11-16）—— 「这条模型吃什么」＋ 来源。
+import { ModelInputModalities } from '../components/business/ModelInputModalities';
+// ⚠️ 条目来源（2026-11-16）—— 「这条是上游列的，还是按官方文档补的」。
+import { ModelEntrySource } from '../components/business/ModelEntrySource';
 
 // ---- backend contract (synapse catalog + encephalon ProviderManager) ----
 
@@ -57,6 +62,24 @@ interface ModelSummary {
    */
   capability_source?: string;
   /**
+   * **输入模态**（`text` / `image` / `audio` / `video` / `pdf`）—— 端脑读面
+   * 算的（上游 → 出厂清单 → 兜底 `text`）。
+   *
+   * ⚠️ 空 ＝ **不知道** ⇒ ⇒ 界面不画徽章（不骗人）。
+   */
+  input_modalities?: string[];
+  /** 这份模态**从哪来**（`upstream` / `catalog` / `default`）。 */
+  input_modalities_source?: string;
+  /**
+   * **这条条目从哪来**（`upstream` / `preset`）—— 2026-11-16 加。
+   *
+   * ⚠️ 上游的「模型列表」**只列对话模型**（MiniMax 的 `GET /v1/models` 逐字
+   * 只给 `MiniMax-M3.1-Flash` / `MiniMax-M3` ⇒ ⇒ 出图 `MiniMax-H3-Image` /
+   * 视频 `MiniMax-H3` / 语音 `speech-*` **压根不在那个列表里**）⇒ ⇒ 那几档
+   * 是**按官方文档补进来的** ⇒ ⇒ 不标来源 ⇒ ⇒ 界面把它们说成「实时拉的」。
+   */
+  model_source?: string;
+  /**
    * 盘上真的有吗？
    *
    * ⚠️ 内置条目里「目录里有、但**还没下载**」的模型也列出来 ⇒ ⇒ 不带这个
@@ -80,6 +103,15 @@ interface ProviderEntry {
   models: ModelSummary[];
   last_refreshed_at?: string;
   last_error?: string;
+  /**
+   * ⚠️ **模型清单的来源**（2026-11-16）—— `'upstream'`（实时拉的）/
+   * `'preset'`（按**官方文档**预设的兜底清单）/ undefined（还没拉过）。
+   *
+   * ⚠️ 有的上游**压根没有**「模型列表」这个接口（Google 的 OpenAI 兼容面
+   * ⇒ 404；百度千帆 ⇒ 302）⇒ ⇒ 那时端脑会顶上「按官方文档预设的清单」
+   * ⇒ ⇒ 界面**必须说清这份不是实时拉的**（不许「失败长得像成功」）。
+   */
+  models_source?: string;
   /**
    * 内置供应商（neuron）—— 大脑自带的那个**本地模型**供应商。
    *
@@ -252,6 +284,9 @@ export function ProvidersPage() {
     'vision',
     'forecast',
     'image_gen',
+    // ⚠️ **第 10 档**（2026-11-16）—— 视频生成有自己的桶了（端脑下发后
+    // 会被覆盖；这一份只是**首屏兜底**）。
+    'video_gen',
   ]);
   /** 正在保存覆盖的模型 id（逐行禁用 + 转圈）。 */
   const [savingTypeOf, setSavingTypeOf] = useState<string | null>(null);
@@ -641,6 +676,13 @@ export function ProvidersPage() {
                         {formatContext(m.context_length)}
                       </span>
                     )}
+                    {/* ⚠️ 输入模态（2026-11-16）—— 预览这一格也要说清「吃什么」＋来源。 */}
+                    <ModelInputModalities
+                      modalities={m.input_modalities}
+                      source={m.input_modalities_source}
+                    />
+                    {/* ⚠️ 条目来源（2026-11-16）—— 预览里也得说清哪条是按文档补的。 */}
+                    <ModelEntrySource source={m.model_source} />
                     {picked && (
                       <span className="shrink-0 text-[10px] font-medium text-primary">
                         {t('providers.previewSelected') || '已选'}
@@ -1110,6 +1152,13 @@ export function ProvidersPage() {
                                   m.capability_source ||
                                   'default'}
                               </span>
+                              {/* ⚠️ 输入模态（2026-11-16）—— 说清「吃什么」＋ 来源。 */}
+                              <ModelInputModalities
+                                modalities={m.input_modalities}
+                                source={m.input_modalities_source}
+                              />
+                              {/* ⚠️ 条目来源（2026-11-16）—— 这条是按文档补的。 */}
+                              <ModelEntrySource source={m.model_source} />
                               {savingTypeOf === m.id ? (
                                 <Loader2
                                   size={12}
@@ -1161,6 +1210,33 @@ export function ProvidersPage() {
                         </span>
                       </div>
                     )}
+                    {/* ⚠️ **来源要标出来**（2026-11-16）—— 端脑在「上游压根
+                        没有模型列表这个接口」时会顶上**按官方文档预设的清单**
+                        ⇒ ⇒ 界面必须说清这份**不是实时拉的** ⇒ ⇒ 否则
+                        「失败长得像成功」。 */}
+                    {provider.models_source === 'preset' && (
+                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-amber-600">
+                        <FileText size={11} />
+                        <span>{t('providers.modelsFromDocs')}</span>
+                      </div>
+                    )}
+                    {/* ⚠️ **混了一份**（2026-11-16）—— 上游那份只列对话模型 ⇒ ⇒
+                        官方文档里那几档是**补进来的** ⇒ ⇒ 说清「有几条不是实时
+                        拉的」（逐条徽章在「模型类型」那一栏里）。 */}
+                    {provider.models_source !== 'preset' &&
+                      provider.models.filter((m) => m.model_source === 'preset')
+                        .length > 0 && (
+                        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-amber-600">
+                          <FileText size={11} />
+                          <span>
+                            {t('providers.modelsPartlyFromDocs', {
+                              count: provider.models.filter(
+                                (m) => m.model_source === 'preset',
+                              ).length,
+                            })}
+                          </span>
+                        </div>
+                      )}
                     {provider.last_error && (
                       <div className="mt-1.5 flex items-start gap-1.5 text-[11px] text-red-500">
                         <AlertCircle size={11} className="mt-0.5 shrink-0" />

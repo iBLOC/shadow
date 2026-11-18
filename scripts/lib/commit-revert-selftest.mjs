@@ -387,7 +387,7 @@ function runSelfTestIn(TMP, MINI) {
   const DEDUP_FROM = '**Updated**: 2026-01-01 (' + G1 + ' **条目一** —— 本条占 U+32FF。)\n① 正文一。\n① 正文一。';
   //    ⚠️ **两面在「合法去重」这一族里，from 恰好是同一份内容** —— 因为那一族的形状就是
   //    「HEAD 此刻仍带着那份重复」⇒ ⇒ 提交面的 from ＝ A 的版本、暂存面的 from ＝ HEAD 的版本
-  //    ⇒ ⇒ 在这一族里两者**内容相同**（不同���是**版本号**不同）⇒ ⇒ 结论必然一致。
+  //    ⇒ ⇒ 在这一族里两者**内容相同**（不同只是**版本号**不同）⇒ ⇒ 结论必然一致。
   const dedupCommit = entryRevertNarrowing(DEDUP_FROM, OLD_BODY);
   const dedupStaged = entryRevertNarrowing(DEDUP_FROM, OLD_BODY);
   // ⚠️ **边界对照**：若 HEAD 在那一族之后**又演进过**（真的多出新内容）⇒ ⇒

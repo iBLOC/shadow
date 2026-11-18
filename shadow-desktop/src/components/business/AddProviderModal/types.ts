@@ -27,6 +27,13 @@ export interface LLMModel {
   capability?: string;
   capabilities?: string[];
   context_length: number | null;
+  /**
+   * **输入模态**（`text` / `image` / `audio` / `video` / `pdf`）—— 端脑读面
+   * 算出来的（上游 → 出厂清单 → 兜底 `text`）。
+   */
+  input_modalities?: string[];
+  /** 这份模态**从哪来**（`upstream` / `catalog` / `default`）。 */
+  input_modalities_source?: string;
   supports_vision: boolean;
   supports_function_calling: boolean;
   enabled: boolean;

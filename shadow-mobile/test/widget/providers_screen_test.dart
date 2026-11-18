@@ -443,4 +443,187 @@ void main() {
       );
     });
   });
-}
+
+  // ═══════════════════════════════════════════════════════════════════
+  // **模型清单的来源**（2026-11-16）—— 「按官方文档预设」的那份必须说清。
+  // ═══════════════════════════════════════════════════════════════════
+  group('模型清单的来源（实时拉 / 按文档预设）', () {
+    Future<void> pumpProvider(WidgetTester tester, Map<String, Object?> extra) async {
+      final notifier = ProvidersNotifier(
+        clientReturning((req) {
+          if (req.url.path.endsWith('/presets')) {
+            return http.Response(jsonEncode(<Object>[]), 200);
+          }
+          return http.Response(
+            jsonEncode([
+              {
+                'id': 'prov-gemini',
+                'name': 'Google Gemini',
+                'base_url':
+                    'https://generativelanguage.googleapis.com/v1beta/openai',
+                'api_standard': 'openai',
+                'enabled': true,
+                'preset_id': 'gemini',
+                'models': [
+                  {'id': 'gemini-2.5-flash', 'name': 'gemini-2.5-flash'},
+                ],
+                ...extra,
+              },
+            ]),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      await pumpWidgetForTest(tester, app(notifier));
+      await tester.pumpAndSettle();
+    }
+
+    // ⚠️ **按官方文档预设**的那份 ⇒ ⇒ 界面必须说清「不是实时拉的」
+    // （不许「失败长得像成功」）。
+    testWidgets('⚠️ 清单是「按文档预设」⇒ 界面标出来', (
+      WidgetTester tester,
+    ) async {
+      await pumpProvider(tester, {'models_source': 'preset'});
+
+      expect(
+        find.text(
+          "Preset from the provider's official docs (not a live list)",
+        ),
+        findsOneWidget,
+        reason: '这份清单不是实时拉的 ⇒ 界面必须标出来',
+      );
+    });
+
+    // ⚠️ **正控**：实时拉的那份**不**标「按文档预设」（否则标记就成摆设）。
+    testWidgets('✅ 清单是实时拉的 ⇒ 不标「按文档预设」', (
+      WidgetTester tester,
+    ) async {
+      await pumpProvider(tester, {'models_source': 'upstream'});
+
+      expect(
+        find.text(
+          "Preset from the provider's official docs (not a live list)",
+        ),
+        findsNothing,
+        reason: '实时拉的清单不许被标成「按文档预设」',
+      );
+    });
+
+    // ⚠️ **负控**：老数据没这个字段 ⇒ ⇒ 不许乱标。
+    testWidgets('✅ 老数据没这个字段 ⇒ 不标', (WidgetTester tester) async {
+      await pumpProvider(tester, <String, Object?>{});
+
+      expect(
+        find.text(
+          "Preset from the provider's official docs (not a live list)",
+        ),
+        findsNothing,
+        reason: '「不知道来源」时不许乱标',
+      );
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 输入模态（2026-11-16）—— 「这条模型吃什么」＋ **来源**。
+  //
+  // ⚠️ 只给最终模态、不说来源 ⇒ ⇒「上游真给的」与「我们按官方文档预设的」
+  // 在界面上长得一样 ⇒ ⇒ 猜错了没人发现 ⇒ ⇒ 来源必须出现在界面上。
+  // ═══════════════════════════════════════════════════════════════════
+  group('输入模态（吃什么 ＋ 从哪来）', () {
+    testWidgets('✅ 模态显示在芯片上，来源也说清楚', (
+      WidgetTester tester,
+    ) async {
+      final notifier = ProvidersNotifier(
+        clientReturning((req) {
+          if (req.url.path.endsWith('/presets')) {
+            return http.Response(jsonEncode(<Object>[]), 200);
+          }
+          return http.Response(
+            jsonEncode([
+              {
+                'id': 'prov-1',
+                'name': 'OpenAI',
+                'base_url': 'https://api.openai.com/v1',
+                'api_standard': 'openai',
+                'enabled': true,
+                'selected_model': 'gpt-4o',
+                'preset_id': 'openai',
+                'models': [
+                  {
+                    'id': 'gpt-4o',
+                    'name': 'GPT-4o',
+                    'capability': 'llm',
+                    'available': true,
+                    'input_modalities': ['text', 'image'],
+                    'input_modalities_source': 'catalog',
+                  },
+                ],
+              },
+            ]),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      await pumpWidgetForTest(tester, app(notifier));
+      await tester.pumpAndSettle();
+
+      // 模态进了芯片的文案（能力 · 模态 · id）。
+      expect(find.text('llm · text/image · gpt-4o'), findsOneWidget);
+      // ⚠️ 来源也要说（不许只给最终值）。
+      expect(
+        find.textContaining('Preset from official docs'),
+        findsOneWidget,
+        reason: '输入模态的来源必须说清楚',
+      );
+    });
+
+    // ⚠️ **只吃文本就不显示**（那是兜底默认值）⇒ ⇒ 每条都写出来全是噪音
+    // ⇒ ⇒ 但**来源照样要说**（默认也是来源的一种）。
+    testWidgets('✅ 只吃文本 ⇒ 芯片上不写模态，但来源照样说', (
+      WidgetTester tester,
+    ) async {
+      final notifier = ProvidersNotifier(
+        clientReturning((req) {
+          if (req.url.path.endsWith('/presets')) {
+            return http.Response(jsonEncode(<Object>[]), 200);
+          }
+          return http.Response(
+            jsonEncode([
+              {
+                'id': 'prov-1',
+                'name': 'DeepSeek',
+                'base_url': 'https://api.deepseek.com/v1',
+                'api_standard': 'openai',
+                'enabled': true,
+                'selected_model': 'deepseek-chat',
+                'preset_id': 'deepseek',
+                'models': [
+                  {
+                    'id': 'deepseek-chat',
+                    'name': 'deepseek-chat',
+                    'capability': 'llm',
+                    'available': true,
+                    'input_modalities': ['text'],
+                    'input_modalities_source': 'default',
+                  },
+                ],
+              },
+            ]),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      await pumpWidgetForTest(tester, app(notifier));
+      await tester.pumpAndSettle();
+
+      expect(find.text('llm · deepseek-chat'), findsOneWidget);
+      expect(
+        find.textContaining('Default (text only)'),
+        findsOneWidget,
+        reason: '兜底也是来源的一种 ⇒ 也要说',
+      );
+    });
+  });}

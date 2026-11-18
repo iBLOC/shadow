@@ -1,0 +1,77 @@
+{
+  "catalogId": "https://raw.githubusercontent.com/iBLOC/shadow/main/a2ui/catalogs/v1/catalog.json",
+  "protocolVersion": "1.0",
+  "components": {
+    "TaskCard": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "TaskCard"
+        },
+        "title": {
+          "type": "string",
+          "description": "The task title."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional task description."
+        },
+        "status": {
+          "type": "string",
+          "description": "Task status. A protocol value: rendered as-is, never translated.",
+          "enum": [
+            "pending",
+            "in_progress",
+            "completed",
+            "cancelled",
+            "overdue"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "description": "Task priority. A protocol value: rendered as-is, never translated.",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "title"
+      ]
+    },
+    "AgentStatusIndicator": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "AgentStatusIndicator"
+        },
+        "agentName": {
+          "type": "string",
+          "description": "The agent (lobe) name."
+        },
+        "status": {
+          "type": "string",
+          "description": "Agent status. 'unknown' means we never probed it, which is not the same as healthy.",
+          "enum": [
+            "idle",
+            "thinking",
+            "executing",
+            "error",
+            "unknown"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "description": "Optional human-readable note next to the status."
+        }
+      },
+      "required": [
+        "component",
+        "agentName"
+      ]
+    }
+  }
+}

@@ -1,4 +1,6 @@
 import { AGUI_CUSTOM_NAMES } from './types';
+import { a2uiOpsFromEvent } from './a2uiActivity';
+import type { A2uiMessage } from '../a2uiProtocol';
 import { initialAguiTurnState, isKnownAguiEvent, reduceAguiEvent } from './protocol';
 import type { AguiToolCallState } from './protocol';
 import type { AguiClient } from './client';
@@ -30,6 +32,13 @@ export type AguiDriverEvent =
   | { kind: 'tool_failed'; call: AguiToolCall; error: string }
   | { kind: 'tool_result'; toolCallId?: string; name: string; result: unknown }
   | { kind: 'progress'; name: string; value: unknown }
+  /**
+   * **AG-UI 承载的那块 A2UI 面**（官方 `ACTIVITY_SNAPSHOT`）。
+   *
+   * ⚠️ `ops` 是**官方 activity 的 content**（A2UI v1.0 的消息数组）⇒ ⇒
+   * 零翻译 ⇒ ⇒ 直接喂官方 `MessageProcessor`。
+   */
+  | { kind: 'a2ui_surface'; messageId: string; ops: A2uiMessage[] }
   | { kind: 'finished'; runId: string | null; outcome: string | null; endState: string | null };
 
 export interface AguiDriverOptions {
@@ -129,6 +138,14 @@ export class AguiDriver {
               content: outcome.content,
               ...(outcome.error ? { error: outcome.error } : {}),
             });
+            break;
+          }
+          case 'ACTIVITY_SNAPSHOT': {
+            // ⚠️ **只有 `a2ui-surface` 那一种 activity 归我们管**；
+            // 别的 activity ⇒ ⇒ 不画（也不报错）。
+            const ops = a2uiOpsFromEvent(ev);
+            if (!ops) break;
+            yield { kind: 'a2ui_surface', messageId: ev.messageId, ops };
             break;
           }
           case 'CUSTOM': {

@@ -14,14 +14,25 @@ afterEach(() => {
 
 // ⚠️ 全局 setup 把 `react-i18next` 的 `t` 做成**键透传** ⇒ 断言里用的是键名。
 
-const NINE_CAPS = ['llm', 'asr', 'tts', 'vad', 'rerank', 'embedding', 'vision', 'forecast', 'image_gen'];
+// ⚠️ **十档**（2026-11-17 视频第 10 档）—— 端脑词表 10 档了 ⇒ ⇒ 假数据
+// 必须跟端脑**同一份** ⇒ ⇒ 否则这张卡在测一个**不存在的端脑**。
+const TEN_CAPS = ['llm', 'asr', 'tts', 'vad', 'rerank', 'embedding', 'vision', 'forecast', 'image_gen', 'video_gen'];
+
+/**
+ * 端脑**服务**的那几档（`served`）—— 端脑说了算。
+ *
+ * ⚠️ **不含** `vad` / `video_gen`（词表里有、端脑整条链没有服务路径）
+ * ⇒ ⇒ 那两档的候选必须标成「此刻用不了」。
+ */
+const SERVED_CAPS = ['llm', 'asr', 'tts', 'rerank', 'embedding', 'vision', 'forecast', 'image_gen'];
 
 function defaultsView(defaults: Record<string, string> = {}): CapabilityDefaultsView {
   return {
     defaults,
-    capabilities: NINE_CAPS,
+    capabilities: TEN_CAPS,
     engine_resolved: ['asr', 'tts', 'image_gen'],
     registered: { asr: [], tts: [], image_gen: [] },
+    served: SERVED_CAPS,
   };
 }
 
@@ -63,9 +74,35 @@ const builtinProvider: ModelProvider = {
   ],
 };
 
+/**
+ * 视频模型那一条（2026-11-17）—— 端脑词表里有 `video_gen` 档、供应商目录里
+ * 也有这条模型 ⇒ ⇒ 那一档**有候选** ⇒ ⇒ 才能测「候选被标成不可用」。
+ */
+const videoProvider: ModelProvider = {
+  id: 'minimax',
+  name: 'MiniMax',
+  provider_type: 'openai_compatible',
+  api_base: 'https://api.minimax.cn/v1',
+  models: [
+    {
+      id: 'MiniMax-H3',
+      name: 'H3',
+      model_id: 'MiniMax-H3',
+      is_default: false,
+      capabilities: ['video_gen'],
+      supports_vision: false,
+      supports_function_calling: false,
+    },
+  ],
+};
+
 function mockBackend(opts: { defaults?: Record<string, string> } = {}) {
   vi.spyOn(telencephalonClient, 'getCapabilityDefaults').mockResolvedValue(defaultsView(opts.defaults));
-  vi.spyOn(telencephalonClient, 'listProviders').mockResolvedValue([cloudProvider, builtinProvider]);
+  vi.spyOn(telencephalonClient, 'listProviders').mockResolvedValue([
+    cloudProvider,
+    builtinProvider,
+    videoProvider,
+  ]);
 }
 
 /** 找「某一档」的 select（卡片每档一行 label + select）。 */
@@ -90,22 +127,46 @@ describe('CapabilityDefaultsCard（分档默认卡 · llm 路由真消费面）'
     expect(values).toContain('qwenai-qwen38-max'); // 云模型（capability=chat）进文本模型档
     expect(values).toContain('minicpm5-1b'); // 内置（capability=llm）照旧
 
-    // 9 档各一行 ＝ 9 个 select；chat 桶并掉后不多出第 10 行。
-    expect(document.querySelectorAll('select')).toHaveLength(NINE_CAPS.length);
+    // 10 档各一行 ＝ 10 个 select；chat 桶并掉后不多出第 11 行。
+    expect(document.querySelectorAll('select')).toHaveLength(TEN_CAPS.length);
   });
 
-  it('image_gen 档的标签是「图片生成」（兜底词表九档齐全，不再露出原始能力词）', async () => {
+  it('image_gen 档的标签是「图片生成」（兜底词表十档齐全，不再露出原始能力词）', async () => {
     mockBackend();
     render(<CapabilityDefaultsCard />);
 
     // 修前：image_gen 不在 CAPABILITY_FALLBACK_LABELS ⇒ t(key, cap) 的
-    // default 就是 'image_gen' 原样露出；修后九档每档都有中文兜底，
+    // default 就是 'image_gen' 原样露出；修后十档每档都有中文兜底，
     // 且 i18n 表（zh/en）补了 capabilityDefaults.image_gen ⇒ 真翻译也在。
     const row = await findRowSelect('图片生成');
     expect(row).not.toBeNull();
     // 认得出的能力词不允许以原始词形态出现在标签上。
     expect(screen.queryByText('image_gen')).not.toBeInTheDocument();
     expect(screen.queryByText('forecast')).not.toBeInTheDocument();
+  });
+
+  it('⚠️ 端脑不服务那一档 ⇒ 那一档的候选**不可选**、且**说清原因**', async () => {
+    mockBackend();
+    render(<CapabilityDefaultsCard />);
+
+    // 视频那一档：端脑整条链没有视频生成端点 ⇒ ⇒ 端脑的 `served` 里没有它
+    // ⇒ ⇒ 它的候选必须**不可选**（不许给用户一个必然失败的选项）。
+    const videoSelect = await findRowSelect('视频生成');
+    const videoOptions = [...videoSelect.options].filter((o) => o.value !== '');
+    expect(videoOptions.length).toBeGreaterThan(0);
+    for (const o of videoOptions) {
+      expect(o.disabled).toBe(true);
+      // ⚠️ 只标 disabled 只会让用户以为「这个模型没了」⇒ ⇒ 必须说清原因
+      // （setup 的 t 是**键透传** ⇒ ⇒ 断言里看到的是**键名**；真翻译由
+      // i18n 键位完整性闸管）。
+      expect(o.textContent).toContain('capabilityDefaults.optionUnserved');
+    }
+
+    // 负控：端脑**服务**的那档照旧可选（不许一刀切全禁）。
+    const llmSelect = await findRowSelect(LLM_ROW_LABEL);
+    const llmOptions = [...llmSelect.options].filter((o) => o.value !== '');
+    expect(llmOptions.length).toBeGreaterThan(0);
+    expect(llmOptions.every((o) => !o.disabled)).toBe(true);
   });
 
   it('选云模型 ⇒ setCapabilityDefaults 之外还调 setLobeModels（注册＋全局默认；payload 无 api_key）', async () => {

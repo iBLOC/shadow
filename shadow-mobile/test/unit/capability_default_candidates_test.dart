@@ -478,6 +478,8 @@ void main() {
       'vision',
       'forecast',
       'image_gen',
+      // ⚠️ **第 10 档**（2026-11-16）—— 端脑词表 10 档了。
+      'video_gen',
     ];
     const engineResolved = ['asr', 'tts', 'image_gen'];
 
@@ -503,7 +505,9 @@ void main() {
     test('端脑不读的档单独列出来（拿去告诉用户，不给下拉）', () {
       expect(
         unconsumedCapabilityTiers(capabilities, engineResolved),
-        ['vad', 'rerank', 'embedding', 'vision', 'forecast'],
+        // ⚠️ `video_gen` 在「没人读」那一列（2026-11-16）—— 端脑整条链
+        // 没有视频生成端点 ⇒ ⇒ 界面不给它下拉，只说一句「端脑不读」。
+        ['vad', 'rerank', 'embedding', 'vision', 'forecast', 'video_gen'],
       );
     });
 
@@ -527,6 +531,62 @@ void main() {
         isEmpty,
         reason: '没有依据 ⇒ 不许编一句「这几类没人读」',
       );
+    });
+  });
+
+  /// ⚠️ **第 10 档 `video_gen`**（2026-11-16）—— 「词表里有」与「端脑
+  /// 服务」是**两句话**。
+  ///
+  /// ⚠️ 端脑 → neuron **整条链没有视频生成端点** ⇒ ⇒ 这一档在词表里、
+  /// 端脑**不服务** ⇒ ⇒ 客户端必须说清「这一档现在调不了」。
+  group('第 10 档 video_gen —— 「词表里有」≠「端脑服务」', () {
+    test('端脑没给 served（老端脑）⇒ 视频那一档判为「不服务」', () {
+      expect(isServedCapability('video_gen', null), isFalse);
+      // 负控：别的档照旧服务（不许一刀切全灭）。
+      expect(isServedCapability('image_gen', null), isTrue);
+      expect(isServedCapability('llm', null), isTrue);
+      expect(telencephalonUnservedTiers, {'video_gen'});
+    });
+
+    test('端脑给了 served ⇒ 以端脑为准（将来端脑真加了门面就自动放行）', () {
+      expect(isServedCapability('video_gen', const ['llm', 'image_gen']), isFalse);
+      expect(
+        isServedCapability('video_gen', const ['llm', 'image_gen', 'video_gen']),
+        isTrue,
+      );
+    });
+
+    test('配了视频那一档 ⇒ 要报「用不了」（端脑不服务，不是引擎没注册）', () {
+      final out = unusableCapabilityDefaults(
+        const {'video_gen': 'MiniMax-H3'},
+        const [],
+        const {},
+      );
+      expect(out, hasLength(1));
+      expect(out.single.capability, 'video_gen');
+      expect(out.single.modelId, 'MiniMax-H3');
+    });
+
+    test('端脑说服务了这一档 ⇒ 不再报（端脑说了算）', () {
+      final out = unusableCapabilityDefaults(
+        const {'video_gen': 'MiniMax-H3'},
+        const [],
+        const {},
+        served: const ['llm', 'video_gen'],
+      );
+      expect(out, isEmpty);
+    });
+
+    test('CapabilityDefaultsView 解析 served（老端脑没这个字段 ⇒ 空表）', () {
+      final view = CapabilityDefaultsView.fromJson({
+        'capabilities': ['llm', 'video_gen'],
+        'served': ['llm'],
+      });
+      expect(view.served, ['llm']);
+      final old = CapabilityDefaultsView.fromJson({
+        'capabilities': ['llm', 'video_gen'],
+      });
+      expect(old.served, isEmpty);
     });
   });
 }

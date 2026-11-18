@@ -1967,6 +1967,30 @@ class TelencephalonClient {
   }
 
   // =========================================================================
+  // 视频生成面（`video_gen` 档的门面 —— admin 门）
+  // =========================================================================
+
+  /// **视频生成**（大脑面 POST /api/telencephalon/videos/generations）。
+  ///
+  /// ⚠️ 官方那套是**两步**（创建 ⇒ 查询）⇒ ⇒ 这里也做两步 ⇒ ⇒ 端脑**不落
+  /// 状态**（零新增存储）⇒ ⇒ 查询时拿 task_id 去问供应商。
+  ///
+  /// ⚠️ body 形状与桌面端 `GenerateVideoRequest` 同一份（prompt 必填；
+  /// model 不给就用 `video_gen` 分档默认）。
+  Future<Map<String, dynamic>> generateVideo(Map<String, dynamic> body) async {
+    return _post('/api/telencephalon/videos/generations', body);
+  }
+
+  /// **查回一个视频任务**（第二步）。
+  ///
+  /// ⚠️ **model 是必带的** —— 端脑不落状态 ⇒ ⇒ 要靠它找回「哪个供应商」
+  /// ⇒ ⇒ 少了它端脑会**响亮报错**（它不会瞎问一家）。
+  Future<Map<String, dynamic>> queryVideo(String taskId, String model) async {
+    return _get(
+        '/api/telencephalon/videos/generations/${Uri.encodeComponent(taskId)}?model=${Uri.encodeComponent(model)}');
+  }
+
+  // =========================================================================
   // 配置中心（`/api/telencephalon/config/*`）—— 记忆存储的落点写在这里
   // =========================================================================
 
@@ -2097,6 +2121,14 @@ class RegisteredProvider {
   final String? lastError;
   final String? lastRefreshedAt;
   ///
+  /// ⚠️ **模型清单的来源**（2026-11-16）—— `'upstream'`（实时拉的）/
+  /// `'preset'`（按**官方文档**预设的兜底清单）/ `null`（还没拉过）。
+  ///
+  /// ⚠️ 有的上游**压根没有**「模型列表」这个接口（Google 的 OpenAI 兼容面
+  /// ⇒ 404；百度千帆 ⇒ 302）⇒ ⇒ 那时端脑会顶上预设清单 ⇒ ⇒ 界面**必须
+  /// 说清这份不是实时拉的**。
+  final String? modelsSource;
+  ///
   /// **内置供应商**（neuron）—— 大脑自带的那个**本地模型**供应商。
   ///
   /// ⚠️ 它在注册表里**只读**（读视图里合成，不在存储里）⇒ ⇒ 界面据此不给
@@ -2115,6 +2147,7 @@ class RegisteredProvider {
     this.models = const [],
     this.lastError,
     this.lastRefreshedAt,
+    this.modelsSource,
     this.builtin = false,
   });
 
@@ -2137,6 +2170,9 @@ class RegisteredProvider {
           .toList(),
       lastError: json['last_error'] as String?,
       lastRefreshedAt: json['last_refreshed_at'] as String?,
+      // ⚠️ 大脑那边会标出这份清单是「实时拉的」还是「按文档预设的」⇒ ⇒
+      // 老数据没这个字段时按「不知道」处理（界面不乱标）。
+      modelsSource: json['models_source'] as String?,
       // ⚠️ 大脑那边的内置条目会自报家门（`builtin: true`）⇒ ⇒ 老数据没这个
       // 字段时按「不是内置」处理（**不**把普通供应商误判成内置）。
       builtin: json['builtin'] as bool? ?? false,
@@ -2169,11 +2205,24 @@ class RegisteredModel {
   /// ⚠️ 没有这个字段 ＝ **不知道** ⇒ ⇒ 按「可用」处理。
   final bool? available;
 
+  /// **输入模态**（`text` / `image` / `audio` / `video` / `pdf`）——
+  /// 端脑读面算出来的（上游 → 出厂清单 → 兜底 `text`）。
+  ///
+  /// ⚠️ 没有这个字段 ＝ **端脑还没给**（旧端脑）⇒ ⇒ 按「不知道」处理。
+  final List<String> inputModalities;
+
+  /// 这份模态**从哪来**（`upstream` / `catalog` / `default`）。
+  ///
+  /// ⚠️ 没有它 ＝ **不知道** ⇒ ⇒ 界面不乱标来源。
+  final String? inputModalitiesSource;
+
   const RegisteredModel({
     required this.id,
     required this.name,
     this.capability,
     this.available,
+    this.inputModalities = const [],
+    this.inputModalitiesSource,
   });
 
   factory RegisteredModel.fromJson(Map<String, dynamic> json) => RegisteredModel(
@@ -2189,6 +2238,13 @@ class RegisteredModel {
         '',
     capability: _firstCapability(json),
     available: json['available'] as bool?,
+    // ⚠️ **输入模态**（2026-11-16）—— 端脑读面算的（上游 → 出厂清单 →
+    // 兜底 text）；老端脑没这个字段 ⇒ ⇒ 空列表（界面不画）。
+    inputModalities:
+        ((json['input_modalities'] as List?) ?? const [])
+            .whereType<String>()
+            .toList(),
+    inputModalitiesSource: json['input_modalities_source'] as String?,
   );
 
   /// 取**第一个**能力（没有 ⇒ null）。

@@ -317,7 +317,9 @@
       "tooltip": "{{tokens}} tokens · {{seconds}}s"
     },
     "speak": "朗读",
-    "stopSpeaking": "停止朗读"
+    "stopSpeaking": "停止朗读",
+    "speakSkippedMuted": "设备已静音，已跳过朗读",
+    "speakAnyway": "仍要朗读"
   },
   "lobes": {
     "prefrontal": "前额叶",
@@ -346,6 +348,13 @@
     "vision": "视觉支持",
     "default": "默认",
     "visionSupport": "视觉",
+    "inputModalities": "输入",
+    "inputModalitiesSource": "输入模态来源",
+    "inputModalitiesSourceUpstream": "上游标注",
+    "inputModalitiesSourceCatalog": "按官方文档预设",
+    "inputModalitiesSourceDefault": "默认（只支持文本）",
+    "entrySourcePreset": "文档预设",
+    "entrySourcePresetHint": "上游的模型列表没列它 —— 这是按官方文档补上的",
     "functions": "函数调用",
     "loadingModels": "加载模型中...",
     "configureProviders": "配置您的 LLM 提供商和模型",
@@ -1212,7 +1221,9 @@
     "empty": "目录为空（端脑未内嵌 neuron 或目录源未配置）。"
   },
   "clientTools": {
-    "imageGenerated": "已生成 {{count}} 张图片（{{size}}），已展示给用户。"
+    "imageGenerated": "已生成 {{count}} 张图片（{{size}}），已展示给用户。",
+    "videoGenerated": "视频已生成并展示给用户：{{url}}",
+    "videoProcessing": "视频还在生成中（任务 {{taskId}}，模型 {{model}}）—— 过一会儿再让我取一次。"
   },
   "logsPage": {
     "title": "错误日志",
@@ -1485,6 +1496,8 @@
     "model": "模型",
     "lastRefresh": "上次更新",
     "refreshModels": "刷新模型",
+    "modelsFromDocs": "这份清单按官方文档预设（不是实时拉的）",
+    "modelsPartlyFromDocs": "其中 {{count}} 条按官方文档预设补齐（上游的模型列表没列它们）",
     "presetTab": "预设供应商",
     "customTab": "自定义",
     "addAndFetch": "添加并获取模型",
@@ -1594,12 +1607,10 @@
     "voice": "语音对话",
     "livestream": "直播",
     "customerService": "智能客服",
-    "a2ui": "生成式界面",
     "tasks": "任务",
     "group": "群组",
     "document": "文档",
     "previews": "预览",
-    "agents": "智能体",
     "models": "模型",
     "modelDownload": "模型下载",
     "modelOnboarding": "模型引导",
@@ -1631,8 +1642,8 @@
     "missingComponent": "缺少组件",
     "unknownComponent": "未知组件",
     "surfaceDrawn": "已展开「{{label}}」。",
-    "surfaceNotDrawn": "端脑这次没有画界面，它说：{{words}}",
-    "surfaceNotDrawnSilent": "端脑这次没有画界面。",
+    "surfaceNotDrawn": "大脑这次没有画界面，它说：{{words}}",
+    "surfaceNotDrawnSilent": "大脑这次没有画界面。",
     "labelTasks": "任务看板",
     "labelAgents": "Agent 列表"
   },
@@ -1655,6 +1666,8 @@
     "appliedButNotCached": "已下发到大脑，但本地副本没存住 —— 重启后这一档会回到默认。",
     "failed": "分档默认模型设置失败",
     "unusableNow": "下面这几档指向的模型这台大脑还没注册 —— 设置存住了，但引擎注册前跑不起来。",
+    "unservedNow": "下面这几档这台大脑还没服务（背后没有对应的调用入口）—— 设置存住了，但端脑现在调不了。",
+    "optionUnserved": "（这台大脑还没服务这一档，选了也调不通）",
     "llm": "文本模型",
     "asr": "语音识别",
     "tts": "语音合成",
@@ -1663,7 +1676,8 @@
     "embedding": "向量模型",
     "vision": "视觉模型",
     "forecast": "预测模型",
-    "image_gen": "图片生成"
+    "image_gen": "图片生成",
+    "video_gen": "视频生成"
   },
   "lobeModelMatrix": {
     "title": "每个叶区用什么模型",

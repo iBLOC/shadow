@@ -157,7 +157,7 @@ class FakeAccessibilityOps extends AccessibilityOps {
 
 class _FakeTts extends TtsEngine {
   @override
-  Future<TtsSpeakResult> speak(String text, {String lang = 'zh-CN', bool allowFallback = true, String? lobe}) async =>
+  Future<TtsSpeakResult> speak(String text, {String lang = 'zh-CN', bool allowFallback = true, String? lobe, bool reportSkip = true, bool force = false}) async =>
       const TtsSpeakResult.spoke();
 }
 

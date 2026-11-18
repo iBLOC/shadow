@@ -12,7 +12,7 @@ Shadow 的**移动端**：Flutter 3.47 + shadcn_ui 的 Android 应用，App 进�
 | 组件 | shadcn_ui 0.57.3（Flutter ShadcnUI，MIT）—— 与桌面端真 shadcn 同源，共用仓根 `design-tokens.json` |
 | 状态 / 路由 | flutter_riverpod 2.5.1 / go_router 14.8.1 |
 | 数据 | sqflite + path_provider |
-| Agent → UI | genui / genui_a2ui 0.7.0（Agent2UI） |
+| Agent → UI | a2ui_core 0.7 + a2ui_flutter 0.3（官方 A2UI SDK） |
 | 多模态 | record / image_picker / camera / file_picker / vad / speech_to_text |
 | 设备 | flutter_blue_plus（BLE 配网）/ usb_serial（USB 音频）/ flutter_ai_toolkit / connectivity_plus / web_socket_channel |
 
@@ -42,7 +42,7 @@ shadow-mobile/
 │   │   ├── prefrontal_client.dart  旧「前额叶方言」客户端（单个文件，见「已知边界」）
 │   │   ├── database/           sqflite 仓储
 │   │   ├── models/             数据模型
-│   │   └── genui/              Agent2UI 渲染
+│   │   └── a2ui/               A2UI 渲染（官方 SDK）
 │   ├── agents/                agent provider（工具注册表、人设）
 │   ├── theme/                 app_tokens.g.dart / shad_scheme.g.dart（生成物）
 │   ├── navigation/nav.g.dart  ← 生成物

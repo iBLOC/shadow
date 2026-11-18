@@ -13,7 +13,7 @@ import '../support/a2ui_fixture.dart';
 ///
 /// 端脑把客户端声明的 `tools` 交给模型，模型决定调用时端脑发 `tool_call`，
 /// **设备执行**，结果回传端脑喂回模型 ⇒ ⇒ 这条路一通，
-/// 「对话中激活 Agent2UI」就不需要改协议。
+/// 「对话中激活 A2ui」就不需要改协议。
 ///
 /// ⚠️ **契约**（两端逐字一致）：
 /// 执行结果 = `{ report, a2ui_events }`
@@ -21,12 +21,6 @@ import '../support/a2ui_fixture.dart';
 /// （fixture `fixtures/a2ui/tasks_sse.txt`）
 /// ⇒ ⇒ 移动端消费的是与桌面端**同一份字节**。
 /// 端脑「这里能看什么」那种**纯文本**回复 —— **有事件，但没画界面**。
-String _textOnlySse() {
-  return 'data: {"result":{"kind":"task-status-update","taskId":"t","contextId":"c",'
-      '"status":{"state":"completed","message":{"kind":"message","messageId":"m",'
-      '"role":"agent","parts":[{"kind":"text","text":"这里能看什么"}]}},"final":true}}\n\n';
-}
-
 void main() {
   ClientToolRegistry registryWith({
     A2uiSurfaceEventFetcher? fetchSurfaceEvents,
@@ -89,7 +83,7 @@ void main() {
 
   group('执行', () {
     test('端脑的 SSE 字节 ⇒ 事件**逐字同形**于 fixture', () async {
-      final service = a2uiFixtureService();
+      final service = await a2uiFixtureService();
       addTearDown(service.dispose);
 
       final registry = registryWith(
@@ -111,7 +105,7 @@ void main() {
     });
 
     test('返回 {report, a2ui_events}；report 是**一句**，不是组件树', () async {
-      final service = a2uiFixtureService();
+      final service = await a2uiFixtureService();
       addTearDown(service.dispose);
 
       final registry = registryWith(
@@ -128,12 +122,13 @@ void main() {
       // ⚠️ **走真的 l10n** —— 强制英文 ⇒ 「硬编码中文」在**任何**机器上都红。
       expect(result['report'], AppLocalizationsEn().a2uiSurfaceReportTasks);
       // ⚠️ **模型不该看到整棵组件树** —— 那会让模型上下文被一堆 JSON 淹了。
-      expect(result['report'], isNot(contains('surfaceUpdate')));
+      //    （v1.0 的组件树在 `createSurface` 那一格里 ⇒ 断言按**它**的字面量）
+      expect(result['report'], isNot(contains('createSurface')));
       expect(result['report'], isNot(contains('写周报')));
     });
 
     test('默认走**当前语言**（设备语言就是界面语言）', () async {
-      final service = a2uiFixtureService();
+      final service = await a2uiFixtureService();
       addTearDown(service.dispose);
 
       final registry = registryWith(
@@ -148,7 +143,7 @@ void main() {
     });
 
     test('中文界面 ⇒ 那句话就是中文（不是硬编码，也不是英文）', () async {
-      final service = a2uiFixtureService();
+      final service = await a2uiFixtureService();
       addTearDown(service.dispose);
 
       final registry = registryWith(
@@ -182,7 +177,7 @@ void main() {
 
     test('端脑只回纯文本（没画界面）⇒ **如实说**，不假装成功', () async {
       // 把 fixture 的 data 行去掉 ⇒ 端脑这次什么都没画。
-      final service = a2uiFixtureService(
+      final service = await a2uiFixtureService(
         body: readA2uiSseFixture().replaceAll(RegExp(r'data: .*'), ''),
       );
       addTearDown(service.dispose);
@@ -204,8 +199,8 @@ void main() {
 
     test('端脑只回**纯文本**（有事件，但**没画界面**）⇒ 如实说 + 把它的话带上', () async {
       // ⚠️ **有事件 ≠ 画出来了** —— 端脑只回纯文本时**也有事件**
-      // （那条事件里没有 `beginRendering` ⇒ 没有根组件 ⇒ 画不出东西）。
-      final service = a2uiFixtureService(body: _textOnlySse());
+      // （那条事件里没有 `createSurface` ⇒ 没有面 ⇒ 画不出东西）。
+      final service = await a2uiFixtureService(body: a2aTextSse('这里能看什么'));
       addTearDown(service.dispose);
 
       final registry = registryWith(
@@ -257,8 +252,8 @@ void main() {
   });
 
   group('界面那一半（surface id）', () {
-    test('只有 beginRendering 才算数 ⇒ 画得出才进列表', () async {
-      final service = a2uiFixtureService();
+    test('只有 createSurface 才算数 ⇒ 画得出才进列表', () async {
+      final service = await a2uiFixtureService();
       addTearDown(service.dispose);
 
       final registry = registryWith(
@@ -275,12 +270,16 @@ void main() {
       );
     });
 
-    test('只有 surfaceUpdate 没有 beginRendering ⇒ **不画半成品**', () {
-      // 只留第一条（surfaceUpdate，没有 beginRendering）。
-      final partial = <Map<String, Object?>>[a2uiFixtureEvents().first];
+    test('旧形状（v0.8，没有 createSurface）⇒ **不画半成品**', () {
+      // ⚠️ **v1.0 没有「渲染门」**了 —— `createSurface` 一到就渲染
+      //    ⇒ ⇒ 「半成品」那一档现在只可能来自**旧形状**（v0.8 的
+      //    `surfaceUpdate` + `beginRendering`）⇒ ⇒ 那不是 v1.0 的面
+      //    ⇒ ⇒ 不许进「画得出」的列表。
+      final legacy = a2uiFixtureEventsV08();
 
+      expect(legacy, isNotEmpty, reason: '共享的 v0.8 fixture 应当还在');
       expect(a2uiSurfaceIdsFromToolResult(<String, Object?>{
-        'a2ui_events': partial,
+        'a2ui_events': legacy,
       }), isEmpty);
     });
   });

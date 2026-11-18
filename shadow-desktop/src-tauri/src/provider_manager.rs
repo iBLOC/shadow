@@ -267,6 +267,31 @@ pub(crate) fn entry_from_brain(raw: &Value) -> Result<ProviderEntry, String> {
                         .get("capability_source")
                         .and_then(|v| v.as_str())
                         .map(str::to_string),
+                    // ⚠️ **输入模态**（text / image / audio / video / pdf）——
+                    // 端脑读面算的（上游 → 出厂清单 → 兜底 text）⇒ ⇒ 不透传
+                    // ⇒ ⇒ 界面上「这条吃什么」看不见 ⇒ ⇒ 用户只能猜。
+                    input_modalities: m
+                        .get("input_modalities")
+                        .and_then(|v| v.as_array())
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(|v| v.as_str())
+                                .map(str::to_string)
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    // ⚠️ 这份模态**从哪来**（upstream / catalog / default）。
+                    input_modalities_source: m
+                        .get("input_modalities_source")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string),
+                    // ⚠️ **这条条目从哪来**（upstream / preset）—— 端脑读面合并
+                    // 时标的 ⇒ ⇒ 不透传 ⇒ ⇒ 界面分不出「上游列的」与「按官方
+                    // 文档补的」⇒ ⇒ 来源标签说谎。
+                    model_source: m
+                        .get("model_source")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string),
                 })
                 .collect()
         })

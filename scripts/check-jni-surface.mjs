@@ -104,6 +104,26 @@ const RUST_JNI_SRC = 'src/mobile/jni.rs';
 
 /** jniLibs 根目录 —— 下面**每个 ABI 子目录**都要查。 */
 const JNI_LIBS_DIR = 'shadow-mobile/android/app/src/main/jniLibs';
+
+/**
+ * jniLibs 下的**真 ABI 目录**。
+ *
+ * ⚠️ 2026-11-17 实测补上：**`.` 开头的目录不是 ABI** ——
+ *    `.mimosa/` 是工具的**运行时状态目录**（`hook-state/*.json`，被仓根
+ *    `.gitignore` 里那条 `.mimosa/` 规则排除）⇒ ⇒ 把它当 ABI 扫 ⇒ ⇒ 报
+ *    「这个 ABI 少了随包库」⇒ ⇒ **判据对着空气跑**（假红）⇒ ⇒ 而且
+ *    「某个 ABI 真的缺库」这种**真问题**会被这条噪声淹没 ⇒ ⇒
+ *    隐藏目录一律**不算 ABI**。
+ *
+ * ⚠️ **不许靠删那个目录来消红** —— 那是**别人的会话状态**（删了就毁掉
+ *    正在跑的东西）⇒ ⇒ 债在**尺子**上 ⇒ ⇒ 尺子改，不动现场。
+ */
+function realAbiDirs(jniLibsRoot) {
+  return readdirSync(jniLibsRoot, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+    .map((d) => d.name)
+    .sort();
+}
 const SO_NAME = 'libencephalon.so';
 
 const line = '═'.repeat(72);
@@ -207,6 +227,17 @@ function runSelfTest() {
     );
     if (opt.jniLibs !== false) {
       for (const a of opt.dirs || ['arm64-v8a']) {
+        const d = join(root, 'shadow-mobile/android/app/src/main/jniLibs', a);
+        mkdirSync(d, { recursive: true });
+        // ⚠️ 2026-11-17 实测补上：每个**真 ABI** 目录里放一个随包库 ——
+        //    否则「各 ABI 随包库的一致性」那一项的并集是**空的** ⇒ ⇒ 它根本
+        //    不触发 ⇒ ⇒ 任何「某个 ABI 少了库」的判例都**测不到**（假绿）。
+        //    ⚠️ 只放**非** `libencephalon.so` 的名字 ⇒ ⇒ ELF 解析那一格不受影响。
+        writeFileSync(join(d, 'libfixture.so'), 'fixture', 'utf8');
+      }
+      // ⚠️ 2026-11-17 实测补上：jniLibs 里可以躺着**隐藏目录**（`.mimosa/`
+      //    是工具的运行时状态目录）⇒ ⇒ **它不是 ABI** ⇒ ⇒ 判据不许把它算进去。
+      for (const a of opt.hiddenDirs || []) {
         mkdirSync(join(root, 'shadow-mobile/android/app/src/main/jniLibs', a), { recursive: true });
       }
     }
@@ -257,6 +288,19 @@ function runSelfTest() {
     {
       name: 'ABI 目录都在、但端脑运行时**一个都没编** ⇒ 退出码 2（判不了，**不是绿**）',
       ...mkCase('c6', { abis: ['arm64-v8a', 'x86_64'], dirs: ['arm64-v8a', 'x86_64'] }),
+      want: 2,
+      wantText: '判不了',
+    },
+    {
+      // ⚠️ 2026-11-17 加：与 c6 **同形**（同样的 ABI 集合），只多一个**隐藏目录**
+      //    ⇒ ⇒ 退出码必须**一样**（2）⇒ ⇒ 隐藏目录**没被当成 ABI**
+      //    ⇒ ⇒ 若尺子又把它算成 ABI ⇒ 这里当场红（判例有分辨力）。
+      name: 'jniLibs 里躺着**隐藏目录**（.mimosa）⇒ 它**不是 ABI** ⇒ 与没有它时**同形**（退出码 2）',
+      ...mkCase('c7', {
+        abis: ['arm64-v8a', 'x86_64'],
+        dirs: ['arm64-v8a', 'x86_64'],
+        hiddenDirs: ['.mimosa'],
+      }),
       want: 2,
       wantText: '判不了',
     },
@@ -368,12 +412,7 @@ if (!existsSync(gradlePath)) {
     cannotJudge.push(`${GRADLE} 里读不出 supportedAbis —— 宣称面读不到`);
     warn(`${GRADLE} 里读不出 supportedAbis —— 这一格**判不了**。`);
   } else {
-    const dirAbis = existsSync(jniLibsRoot)
-      ? readdirSync(jniLibsRoot, { withFileTypes: true })
-          .filter((d) => d.isDirectory())
-          .map((d) => d.name)
-          .sort()
-      : null;
+    const dirAbis = existsSync(jniLibsRoot) ? realAbiDirs(jniLibsRoot) : null;
     // ⚠️ **端脑运行时这一格**：一个都没编 ⇒ 「读不到」⇒ ⇒ 判不了；
     //    编了一部分 ⇒ ⇒ 那一档能判 ⇒ ⇒ 逐个点名。
     const builtAbis = (dirAbis || []).filter((a) => existsSync(join(jniLibsRoot, a, SO_NAME)));
@@ -418,10 +457,7 @@ if (!existsSync(rustPath)) {
   if (required.length === 0) {
     fail(`在 ${RUST_JNI_SRC} 里一个 JNI 符号都没解析出来 —— 核验会变成假绿。`);
   } else {
-    const abis = readdirSync(jniLibsRoot, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name)
-      .sort();
+    const abis = realAbiDirs(jniLibsRoot);
 
     if (abis.length === 0) {
       warn(`${JNI_LIBS_DIR} 下一个 ABI 目录都没有。`);

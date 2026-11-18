@@ -9,8 +9,10 @@
  *
  *   ① 端脑**真的**在 `POST /a2a` 上吐这个形状（不是我们以为的形状）；
  *   ② 端脑的 `/a2a` **真的**在 shadow key 后面（不是「应该」在）；
- *   ③ 两段式语义（`surfaceUpdate` 先、`beginRendering` 后）在**活的**流里成立；
- *   ④ 面板把**活的**字节画成 DOM。
+ *   ③ 端脑按渲染器声明的能力**协商出版本**（v1.0）；
+ *   ④ agents 视图与 401 门在**活的**端脑上成立。
+ *   （⚠️ 2026-11-18 面板摘除 ⇒ 「活的字节画成 DOM」那一格随面板退场 ——
+ *   内联承载那一格的活体证据欠着，记台账。）
  *
  * ⇒ 这个文件补的就是 ㊼ 条 ⑦ 说的那句「还差的是『桌面客户端真的把界面画出来』
  * 那段运行时证据」。
@@ -31,38 +33,14 @@
  * （不许让「端脑没起」变成一条红）。
  */
 import { describe, it, expect } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
 
 import { A2uiHttpError, requestA2uiSurface } from '../../../lib/a2uiClient';
-import { A2uiPanel } from '../A2uiPanel';
 
 const LIVE_URL = process.env.A2UI_LIVE_URL;
 const LIVE_KEY = process.env.A2UI_LIVE_KEY;
 const LIVE_ADMIN = process.env.A2UI_LIVE_ADMIN_TOKEN;
 
 const live = Boolean(LIVE_URL && LIVE_KEY && LIVE_ADMIN);
-
-/**
- * 丢掉 `signal` 的 fetch 适配器。
- *
- * ⚠️ **为什么必须丢**：jsdom 的 `AbortSignal` 与 undici 的**不是同一个类**
- * ⇒ undici 直接拒收：`RequestInit: Expected signal ("AbortSignal {}") to be
- * an instance of AbortSignal.`
- * ⇒ 而 `A2uiPanel` 内部**自己**建了一个 `AbortController` 交给请求 ⇒
- * 在 jsdom 下，面板对**真端脑**的每一次请求都会当场失败。
- *
- * ⚠️ 这个坑仓库里早就记过：`vitest.config.ts` 的注释里写着，
- * `tests/api-contract/**` 那个真实 HTTP 探测套件在 jsdom 下
- * 「每一条探测都像够不着 ⇒ 整个套件静默退化成空跑」。
- * ⇒ 它自己的解法是**换到 node 环境**（`vitest.api.config.ts`）。
- *
- * 这里不换环境（要渲染 React），而是**把 signal 丢掉**：这条测试要验的是
- * 「线缆格式 + 渲染」，不是「能不能中断一个请求」。
- */
-const fetchWithoutSignal: typeof fetch = (input, init) => {
-  const { signal: _signal, ...rest } = init ?? {};
-  return fetch(input, rest);
-};
 
 /** 建一条**本次运行独有**的任务 —— 断言才能精确到「画出来的是我建的那条」。 */
 async function createProbeTask(title: string): Promise<void> {
@@ -82,7 +60,7 @@ async function createProbeTask(title: string): Promise<void> {
 }
 
 describe.skipIf(!live)('A2UI — 对着活的端脑（live）', () => {
-  it('端脑真的在 /a2a 上吐 surfaceUpdate + beginRendering（两段式）', async () => {
+  it('端脑真的在 /a2a 上吐 **v1.0 的 createSurface**', async () => {
     const title = `活体联调任务 ${Date.now()}`;
     await createProbeTask(title);
 
@@ -95,12 +73,10 @@ describe.skipIf(!live)('A2UI — 对着活的端脑（live）', () => {
     // ⚠️ 协议层没有报过错 ⇒ 端脑发的东西是我们**认识**的形状
     expect(result.errors).toEqual([]);
 
-    // 两段式：`beginRendering` 到了 ⇒ 才有可渲染的 surface
-    const renderable = result.model.renderableSurfaces;
-    expect(renderable).toHaveLength(1);
-
-    const surface = result.model.get('shadow.tasks');
-    expect(surface?.rendered).toBe(true);
+    // v1.0：一条 createSurface ⇒ 一块可渲染的 surface
+    const surface = result.surface;
+    expect(surface).not.toBeNull();
+    expect(surface?.id).toBe('shadow.tasks');
     expect(surface?.rootId).toBe('root');
 
     // ⚠️ 画出来的是**活的数据**，不是录下来的字节
@@ -109,9 +85,9 @@ describe.skipIf(!live)('A2UI — 对着活的端脑（live）', () => {
     // （状态 → 优先级 → **标题字典序**）(`telencephalon/src/a2a/a2ui.rs`
     // → `render_tasks` / `status_rank`) ⇒ 第一张卡**不是**最新的那条
     // ⇒ 断言必须按**标题**找，不能按下标找。
-    const titles = (surface?.components ?? [])
-      .filter((c) => 'TaskCard' in c.component)
-      .map((c) => (c.component.TaskCard as { title?: string }).title);
+    const titles = [...(surface?.componentsModel.getAll().values() ?? [])]
+      .filter((component) => component.type === 'TaskCard')
+      .map((component) => component.properties.title);
     expect(titles).toContain(title);
   });
 
@@ -127,13 +103,13 @@ describe.skipIf(!live)('A2UI — 对着活的端脑（live）', () => {
 
     expect(result.errors).toEqual([]);
 
-    const surface = result.model.get('shadow.agents');
-    expect(surface?.rendered).toBe(true);
+    const surface = result.surface;
+    expect(surface?.id).toBe('shadow.agents');
     expect(surface?.rootId).toBe('root');
 
-    const names = (surface?.components ?? [])
-      .filter((c) => 'AgentStatusIndicator' in c.component)
-      .map((c) => (c.component.AgentStatusIndicator as { agentName?: string }).agentName);
+    const names = [...(surface?.componentsModel.getAll().values() ?? [])]
+      .filter((component) => component.type === 'AgentStatusIndicator')
+      .map((component) => component.properties.agentName);
     expect(names.length).toBeGreaterThan(0);
     for (const name of names) expect(name).toBeTruthy();
   });
@@ -149,29 +125,5 @@ describe.skipIf(!live)('A2UI — 对着活的端脑（live）', () => {
       (e: unknown) => e as A2uiHttpError,
     );
     expect((error as A2uiHttpError).status).toBe(401);
-  });
-
-  it('面板把活的字节画成 DOM（界面上真的看得到那条任务）', async () => {
-    const title = `活体渲染任务 ${Date.now()}`;
-    await createProbeTask(title);
-
-    render(
-      <A2uiPanel
-        baseUrl={LIVE_URL!}
-        apiKey={LIVE_KEY!}
-        view="tasks"
-        fetchImpl={fetchWithoutSignal}
-      />,
-    );
-
-    await waitFor(
-      () => expect(screen.getByTestId('a2ui-surface')).toBeInTheDocument(),
-      { timeout: 8000 },
-    );
-    expect(screen.getByTestId('a2ui-surface')).toHaveAttribute(
-      'data-surface-id',
-      'shadow.tasks',
-    );
-    expect(screen.getByText(title)).toBeInTheDocument();
   });
 });

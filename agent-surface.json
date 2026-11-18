@@ -63,7 +63,12 @@
       "labelKey": "surface.livestream",
       "icon": "broadcast",
       "desktop": { "route": null, "nav": false },
-      "mobile": { "route": "/livestream", "nav": false, "mode": true }
+      "mobile": {
+        "route": "/livestream",
+        "nav": false,
+        "mode": true,
+        "_hidden": "2026-11-16：移动端**入口已隐藏**（用户诉求逐字：「直播和智能客服页面先隐藏」）⇒ ⇒ 对话页顶部的形态切换器里不再出现这一格 ⇒ ⇒ **页面与路由都留档**（lib/screens/livestream_screen.dart ＋ /livestream）⇒ ⇒ 恢复＝把 id livestream 加回 navigation.mobile.conversationModes ＋ 重跑 node scripts/gen_nav.mjs ⇒ ⇒ 桌面端不受影响（那一面本来就没有这条能力）。⚠️ 「隐藏」只动**入口**不动**代码** ⇒ ⇒ 真下线是另一刀的事。"
+      }
     },
     {
       "id": "customer-service",
@@ -71,7 +76,12 @@
       "labelKey": "surface.customerService",
       "icon": "headset",
       "desktop": { "route": null, "nav": false },
-      "mobile": { "route": "/customer-service", "nav": false, "mode": true }
+      "mobile": {
+        "route": "/customer-service",
+        "nav": false,
+        "mode": true,
+        "_hidden": "2026-11-16：移动端**入口已隐藏**（用户诉求逐字：「直播和智能客服页面先隐藏」）⇒ ⇒ 同 livestream：形态切换器里不再出现 ⇒ ⇒ 页面与路由留档（lib/screens/customer_service_screen.dart ＋ /customer-service）⇒ ⇒ 恢复＝把 id customer-service 加回 navigation.mobile.conversationModes ＋ 重跑生成器。⚠️ 这一页内部有个跳 /livestream 的按钮 ⇒ ⇒ 两页都从入口下线 ⇒ ⇒ 那一跳也一起看不见了。"
+      }
     },
     {
       "id": "a2ui",
@@ -82,15 +92,15 @@
         "route": null,
         "nav": false,
         "_embeddedIn": "对话页主区顶部的「生成式界面」按钮（data-testid=a2ui-toggle）→ 展开 A2UI 面板 —— 不是独立路由",
-        "_implementation": "2026-10-31 落地方向 C 第一片：桌面端在 TypeScript 里**自写** A2A v0.3 + A2UI 协议栈（shadow-desktop/src/lib/a2uiProtocol.ts + a2uiClient.ts）—— 因为 `genui_a2ui` 是 Flutter 包而 Tauri 没有 Dart 运行时。渲染面（shadow-desktop/src/components/chat/A2uiSurface.tsx）只覆盖端脑实际会发的 4 种组件（Column / Text / TaskCard / AgentStatusIndicator），未知组件类型降级成占位而不是崩掉。⚠️ **没有**复用 ToolPartRouter 那套渲染 —— A2UI surface 不是聊天消息，它有自己的 surface id 与组件树，塞进消息 store 会把两套模型搅在一起。"
+        "_implementation": "2026-11-17 起：桌面端用**官方 A2UI SDK**（`@a2ui/web_core` 的 MessageProcessor ＋ `@a2ui/react` 的 A2uiSurface）—— **不再自己写协议栈**。协议版本 **v1.0**（官方当前规范）；HTTP/SSE 通道仍是自己那条（`shadow-desktop/src/lib/a2uiClient.ts`：A2A v0.3 JSON-RPC `message/stream`）。⚠️ 自建目录只有两个业务组件（TaskCard / AgentStatusIndicator）—— 标准组件（Column / Text）走**官方基础目录**，业务组件在组件上用 `@catalogId` 点名我们那份（v1.0 的「一个面里混多个目录」）。⚠️ **没有**复用 ToolPartRouter 那套渲染 —— A2UI surface 不是聊天消息，它有自己的 surface id 与组件树。"
       },
       "mobile": {
         "route": null,
         "nav": false,
         "secondary": true,
-        "_embeddedIn": "对话页 AppBar 上的「组件」按钮（Icons.widgets_outlined），切换 useAgent2UIModeProvider ⇒ **同页共存**：展开的是对话页**上面的一块 A2UI 面板**（对话永远在下面）—— 不是独立路由、也不是「顶掉对话的形态」"
+        "_embeddedIn": "**对话消息里内联**（AG-UI 承载）—— 端脑把面 paint 成官方 `ACTIVITY_SNAPSHOT`（activityType `a2ui-surface`）⇒ ⇒ 面画在**它被点名的那句话下面**（`local_chat_view.dart` 的 `A2uiSurfacesBlock`）⇒ ⇒ **不是独立路由、也没有「上面一块面板」**。⚠️ 2026-11-18：原先那个「AppBar 上的组件按钮（Icons.widgets_outlined）＋ 上面一块 A2UI 面板」（走 **A2A**、自带输入条与连接状态栏、**不记会话**）**已下线** ⇒ ⇒ 移动端现在**只有一条 A2UI 承载**（AG-UI）⇒ ⇒ 父仓 `scripts/check-mobile-single-a2ui-carrier.mjs` 钉着这件事（七条判据 ＋ 真变异）。⚠️ 恢复那块面板要**三件一起**（按钮 ＋ 面板 ＋ 四个观察面 provider），缺一件就退回「两条承载并存」"
       },
-      "_note": "A2UI（Agent-to-UI）—— **服务端现场画界面**。⚠️ 2026-10-31 之前它是**清单外功能**（清单 grep A2UI 零命中 ⇒ 对跨端一致性检查完全隐形），现在登记进来。移动端有完整客户端（genui 协议栈 + 8 个自定义组件目录），服务端产出面在端脑 `POST /a2a`（A2A v0.3 JSON-RPC + SSE），跨端契约由 shadow/fixtures/a2ui/tasks_surface.json 钉住。⚠️ 该产出面**在 shadow key 后面**（telencephalon/src/api/a2ui_gateway.rs 挂 api::shadow_auth::require_shadow_key）—— 它吐的是任务标题与 agent 名字这些用户数据，不是无害的静态面。"
+      "_note": "A2UI（Agent-to-UI）—— **服务端现场画界面**。⚠️ 2026-10-31 之前它是**清单外功能**（清单 grep A2UI 零命中 ⇒ 对跨端一致性检查完全隐形），现在登记进来。**两端客户端都用官方 SDK**（移动端 `a2ui_core` + `a2ui_flutter`；桌面端 `@a2ui/web_core` + `@a2ui/react`）—— 旧的 `genui` / `genui_a2ui` 已被官方点名弃用 ⇒ ⇒ 一并退场。服务端产出面在端脑 `POST /a2a`（A2A v0.3 JSON-RPC + SSE），协议版本 **v1.0**（按客户端声明的版本协商：扩展 URI 或 `a2uiRendererCapabilities` 命中 v1.0 ⇒ 吐 v1.0；旧客户端仍拿 v0.8）。跨端契约由 shadow/fixtures/a2ui/tasks_surface.json 钉住。⚠️ 2026-11-18：**移动端那一侧的面改由 AG-UI 承载**（端脑 `POST /shadow/v1/conversations/{id}/ag-ui:stream` 的官方 `ACTIVITY_SNAPSHOT`）⇒ ⇒ 桌面端仍走 A2A ⇒ ⇒ **两端承载不同，但产出函数是同一套**（端脑 `a2ui::render_view`）⇒ ⇒ 面**逐字同形**（父仓 `check-agui-a2ui-wire.mjs` 的 W6 钉着）⇒ ⇒ **A2A 那条路留着**（它有自己正式的 v1.0 Extension 规范，旧客户端还在用 v0.8）⇒ ⇒ 两条承载并存，不是二选一。⚠️ 该产出面**在 shadow key 后面**（telencephalon/src/api/a2ui_gateway.rs 挂 api::shadow_auth::require_shadow_key）—— 它吐的是任务标题与 agent 名字这些用户数据，不是无害的静态面。"
     },
 
     {
@@ -397,7 +407,8 @@
           "capability": "settings"
         }
       ],
-      "conversationModes": ["chat", "voice", "livestream", "customer-service"]
+      "_conversationModes_note": "移动端的对话形态清单 —— **唯一真源**（生成器按它产出 nav.g.dart 的 conversationModes，切换器只画这一份）。2026-11-16：直播 / 客服两格**入口已隐藏**（用户诉求逐字：「直播和智能客服页面先隐藏」）⇒ ⇒ 从这一份里去掉 ⇒ ⇒ 它们的页面与路由仍在代码里（留档）⇒ ⇒ 恢复＝把两个 id 加回这一份 ＋ 重跑 node scripts/gen_nav.mjs。",
+      "conversationModes": ["chat", "voice"]
     }
   },
 

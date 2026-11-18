@@ -2281,7 +2281,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get capabilityDefaultsUnservedNow =>
-      '下面这几档这台大脑还没服务（背后没有对应的调用入口）—— 设置存住了，但端脑现在调不了。';
+      '下面这几档这台大脑还没服务（背后没有对应的调用入口）—— 设置存住了，但大脑现在调不了。';
 
   @override
   String get providersDownloadModels => '下载本地模型';

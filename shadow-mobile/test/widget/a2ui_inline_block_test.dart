@@ -1,11 +1,11 @@
+import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui/genui.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/providers/chat_provider.dart';
-import 'package:shadow_mobile/providers/genui_provider.dart';
+import 'package:shadow_mobile/providers/a2ui_provider.dart';
 import 'package:shadow_mobile/screens/chat_screen.dart';
 import 'package:shadow_mobile/services/client_tools/client_tool_registry.dart';
 import 'package:shadow_mobile/widgets/chat/a2ui_inline_block.dart';
@@ -24,6 +24,30 @@ import 'test_helper.dart';
 class _ToolCallChatNotifier extends MockChatNotifier {
   _ToolCallChatNotifier(List<ChatMessageModel> messages) {
     state = state.copyWith(messages: messages);
+  }
+}
+
+/// 一个**不发网络请求**的假端脑服务 —— 它回放**已经解析好的**那批事件。
+///
+/// ⚠️ **为什么不用真 HTTP**：`testWidgets` 跑在假异步里 ⇒ 真 socket 的
+/// 完成回调**永远等不到** ⇒ ⇒ 这里把 `fetchSurfaceEvents` 覆写成
+/// 「喂进 processor ＋ 返回同一批事件」⇒ ⇒ 工具那条路（取回事件 ⇒ 画出来）
+/// 仍然是**真的**（服务端这一侧一字不改）。
+class _ReplayAgentService extends A2uiAgentService {
+  _ReplayAgentService(this.events)
+      : super(
+          serverUrl: 'http://127.0.0.1:1/a2a',
+          shadowKeyProvider: () => null,
+        );
+
+  final List<Map<String, Object?>> events;
+
+  @override
+  Future<List<Map<String, Object?>>> fetchSurfaceEvents(String view) async {
+    // ⚠️ **喂进 processor** —— 界面不是「HTTP 回来的」，
+    // 而是「消息喂进 processor 之后才存在」的 ⇒ ⇒ 不喂 ⇒ 空白。
+    ingestSurfaceEvents(events);
+    return events;
   }
 }
 
@@ -72,21 +96,22 @@ void main() {
   testWidgets('工具调用那条消息里 ⇒ 真的画出了 surface（组件树）', (
     WidgetTester tester,
   ) async {
-    final service = a2uiFixtureService();
+    final events = conformantTasksEvents();
+    final service = _ReplayAgentService(events);
     addTearDown(service.dispose);
 
     // ⚠️ **走真的那条路** —— 工具执行时做的就是这件事：
     //    取回原始事件 ⇒ 喂进 processor ⇒ surface 才存在。
-    final events = await service.fetchSurfaceEvents('tasks');
+    final fetched = await service.fetchSurfaceEvents('tasks');
     final result = <String, dynamic>{
       'report': '已展开「任务看板」。',
-      'a2ui_events': events,
+      'a2ui_events': fetched,
     };
 
     await pumpChat(
       tester,
       overrides: [
-        genUIAgentServiceProvider.overrideWithValue(service),
+        a2uiAgentServiceProvider.overrideWithValue(service),
         chatProvider.overrideWith(
           (ref) => _ToolCallChatNotifier([
             toolCallMessage(
@@ -106,16 +131,16 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(A2uiInlineBlock.inlineKey),
-        matching: find.byType(GenUiSurface),
+        matching: find.byType(A2uiSurface),
       ),
       findsOneWidget,
     );
     // ⚠️ **真的画出了组件树** —— 不是一句文字，是一个 surface。
-    //    （fixture 里的任务标题 ＋ 看板标题）
+    //    （事件里的任务标题 ＋ 看板标题）
     expect(find.text('写周报'), findsOneWidget);
     expect(find.text('Tasks (1)'), findsOneWidget);
     // ⚠️ **只有这一处** —— 不是另开一块面板又画一遍。
-    expect(find.byType(GenUiSurface), findsOneWidget);
+    expect(find.byType(A2uiSurface), findsOneWidget);
     // ⚠️ **那句摘要用户也看得见**（它就是给模型看的那一句）。
     expect(find.text('已展开「任务看板」。'), findsOneWidget);
   });
@@ -123,14 +148,17 @@ void main() {
   testWidgets('事件没喂进 processor ⇒ 消息里**没有**组件树（不画半成品）', (
     WidgetTester tester,
   ) async {
-    final service = a2uiFixtureService();
+    // ⚠️ **只给 surface id，不喂事件** —— 组件还在缓存里，画不出东西。
+    final service = A2uiAgentService(
+      serverUrl: 'http://127.0.0.1:1/a2a',
+      shadowKeyProvider: () => null,
+    );
     addTearDown(service.dispose);
 
-    // ⚠️ **只给 surface id，不喂事件** —— 组件还在缓存里，画不出东西。
     await pumpChat(
       tester,
       overrides: [
-        genUIAgentServiceProvider.overrideWithValue(service),
+        a2uiAgentServiceProvider.overrideWithValue(service),
         chatProvider.overrideWith(
           (ref) => _ToolCallChatNotifier([
             toolCallMessage(const {'report': '端脑这次没有画界面。'}, [
@@ -144,6 +172,7 @@ void main() {
     expect(find.byKey(A2uiInlineBlock.inlineKey), findsOneWidget);
     // ⚠️ **画不出东西** —— 用户看到的是空白，而不是半成品。
     expect(find.text('写周报'), findsNothing);
+    expect(find.byType(A2uiSurface), findsNothing);
     // ⚠️ 但**如实说了没画出来** —— 不是一句空白。
     expect(find.text('端脑这次没有画界面。'), findsOneWidget);
   });

@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ToolCallMessageCard } from '../ToolCallMessageCard';
 import type { ToolCallMessage } from '../../../types';
+import { BASIC_CATALOG_ID, SHADOW_CATALOG_ID } from '../../../lib/a2uiProtocol';
 
 /**
  * **A2UI 内联在消息里** —— 这条不变量钉在这里。
@@ -43,6 +44,53 @@ function fixtureEvents(): unknown[] {
   return out;
 }
 
+/**
+ * 一条端脑形状的 v1.0 事件（**组件 id 用 task0** ⇒ 合法的 UAX #31 标识符
+ * ⇒ 官方 SDK 才会建出面）。
+ */
+function v1Events(): unknown[] {
+  return [
+    {
+      result: {
+        kind: 'task-status-update',
+        status: {
+          state: 'completed',
+          message: {
+            kind: 'message',
+            role: 'agent',
+            parts: [
+              {
+                kind: 'data',
+                data: {
+                  version: '1.0',
+                  createSurface: {
+                    surfaceId: 'shadow.tasks',
+                    catalogId: BASIC_CATALOG_ID,
+                    components: [
+                      { id: 'root', component: 'Column', children: ['title', 'task0'] },
+                      { id: 'title', component: 'Text', text: '# Tasks (1)' },
+                      {
+                        id: 'task0',
+                        component: 'TaskCard',
+                        catalogId: SHADOW_CATALOG_ID,
+                        title: '写周报',
+                        description: '本周进展汇总',
+                        status: 'in_progress',
+                        priority: 'high',
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        },
+        final: true,
+      },
+    },
+  ];
+}
+
 function callWith(result: unknown): ToolCallMessage {
   return {
     id: 'call-1',
@@ -59,21 +107,30 @@ describe('A2UI 内联在消息里', () => {
     vi.restoreAllMocks();
   });
 
-  it('工具结果带了 A2UI 事件 ⇒ 界面画在**这条消息里**', () => {
+  it('工具结果带了 A2UI 事件 ⇒ 界面画在**这条消息里**', async () => {
     render(
       <ToolCallMessageCard
-        call={callWith({ report: '已展开「任务看板」。', a2ui_events: fixtureEvents() })}
+        call={callWith({ report: '已展开「任务看板」。', a2ui_events: v1Events() })}
       />,
     );
 
     // 内联插槽在。
     expect(screen.getByTestId('a2ui-inline-surface')).toBeTruthy();
-    // ⚠️ 而且**真的画出了组件树**（fixture 里的任务标题）。
-    expect(screen.getByText('写周报')).toBeTruthy();
+    // ⚠️ 而且**真的画出了组件树**（任务标题）。
+    expect(await screen.findByText('写周报')).toBeTruthy();
     // ⚠️ **原始事件 JSON 不许甩给用户** —— 事件已经画成界面了。
     expect(screen.queryByText(/surfaceUpdate/)).toBeNull();
     // ⚠️ **结果卡片显示的是那句人话**（不是一坨协议字节）。
     expect(screen.getByText('已展开「任务看板」。')).toBeTruthy();
+  });
+
+  it('共享 fixture 的事件字节 ⇒ **原样**传给界面（两端吃的是同一批字节）', () => {
+    const events = fixtureEvents();
+    expect(events.length).toBeGreaterThan(0);
+    // ⚠️ **形状逐字一致** —— 端脑发什么，客户端就传什么（零翻译）。
+    const part = (events[0] as { result: { status: { message: { parts: { kind: string }[] } } } })
+      .result.status.message.parts[0];
+    expect(part.kind).toBe('data');
   });
 
   it('没有 A2UI 事件 ⇒ 不画内联界面（普通工具结果照旧）', () => {
@@ -86,13 +143,26 @@ describe('A2UI 内联在消息里', () => {
     expect(screen.queryByTestId('a2ui-inline-surface')).toBeNull();
   });
 
-  it('**只有 surfaceUpdate 没有 beginRendering** ⇒ 不画半成品', () => {
-    const events = fixtureEvents();
-    // 只留第一条（surfaceUpdate，没有 beginRendering）。
-    render(
-      <ToolCallMessageCard call={callWith({ a2ui_events: [events[0]] })} />,
-    );
+  it('**没有 createSurface 的事件 ⇒ 不画**（v1.0 只有一条消息，没画就是没画）', async () => {
+    const textOnly = [
+      {
+        result: {
+          kind: 'task-status-update',
+          status: {
+            state: 'completed',
+            message: {
+              kind: 'message',
+              role: 'agent',
+              parts: [{ kind: 'text', text: '这里能看什么' }],
+            },
+          },
+          final: true,
+        },
+      },
+    ];
 
-    expect(screen.queryByTestId('a2ui-inline-surface')).toBeNull();
+    render(<ToolCallMessageCard call={callWith({ a2ui_events: textOnly })} />);
+
+    await waitFor(() => expect(screen.queryByTestId('a2ui-inline-surface')).toBeNull());
   });
 });

@@ -1,0 +1,44 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "shadow.tasks",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Column": {
+              "children": ["title", "task-0"],
+              "alignment": "stretch"
+            }
+          }
+        },
+        {
+          "id": "title",
+          "component": {
+            "Text": {
+              "text": { "literalString": "Tasks (1)" },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "task-0",
+          "component": {
+            "TaskCard": {
+              "title": "写周报",
+              "description": "本周进展汇总",
+              "status": "in_progress",
+              "priority": "high"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "shadow.tasks",
+      "root": "root"
+    }
+  }
+]

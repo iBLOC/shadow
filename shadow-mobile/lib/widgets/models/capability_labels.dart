@@ -30,6 +30,10 @@ String catalogCapabilityLabel(AppLocalizations l10n, String? capability) {
       // ⚠️ **词是 `image_gen`（带下划线）** —— 端脑词表与 synapse 云端目录
       // 同一拼法；写错一个字母这行就「认不出」了（default 会原样显示）。
       return l10n.capImageGen;
+    case 'video_gen':
+      // ⚠️ **第 10 档**（2026-11-16）—— 视频生成有自己的桶了（此前视频模型
+      // 被折进 `image_gen` ⇒ ⇒ 界面上分不出来）。
+      return l10n.capVideoGen;
     default:
       return capability ?? '';
   }

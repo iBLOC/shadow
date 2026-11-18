@@ -32,6 +32,8 @@
     "test:tauri:spec": "wdio run wdio.conf.tauri.ts --spec"
   },
   "dependencies": {
+    "@a2ui/react": "0.15.0",
+    "@a2ui/web_core": "0.15.0",
     "@ai-sdk/react": "^4.0.80",
     "@ai-sdk/ui-utils": "^1.2.11",
     "@google/design.md": "^0.3.0",

@@ -70,11 +70,26 @@ class MockTtsEngine extends TtsEngine {
   bool speakCalled = false;
   String? lastText;
 
+  /// ⚠️ **这一次出声是「静默跳过」还是「报出去」**（2026-11-16）——
+  /// 自动朗读那条路要 `false`（静音时静默跳过，不弹横幅）⇒ ⇒ 手动朗读
+  /// ／试听那条路要 `true`。
+  bool? lastReportSkip;
+
+  /// ⚠️ **这一次是不是「用户执意要听」**（2026-11-16 追加）—— 「仍要
+  /// 朗读」那条路要 `true` ⇒ ⇒ 其余都要 `false`（否则安静判定会被
+  /// 绕过去 ⇒ ⇒ 省算力那一刀就废了）。
+  bool? lastForce;
+
+  /// ⚠️ **这一次要回的结果**（默认真出声）⇒ ⇒ 用来模拟「被跳过了」。
+  TtsSpeakResult result = const TtsSpeakResult.spoke();
+
   @override
-  Future<TtsSpeakResult> speak(String text, {String lang = 'zh-CN', bool allowFallback = true, String? lobe}) async {
+  Future<TtsSpeakResult> speak(String text, {String lang = 'zh-CN', bool allowFallback = true, String? lobe, bool reportSkip = true, bool force = false}) async {
     speakCalled = true;
     lastText = text;
-    return const TtsSpeakResult.spoke();
+    lastReportSkip = reportSkip;
+    lastForce = force;
+    return result;
   }
 }
 
@@ -150,6 +165,9 @@ void main() {
 
       expect(mockTts.speakCalled, isTrue);
       expect(mockTts.lastText, equals('这是一条测试回复'));
+      // ⚠️ **自动朗读 ⇒ 静默跳过**（设备静音时不弹横幅 ⇒ 每轮弹一次
+      // ⇒ ⇒ 变成噪音）⇒ ⇒ reportSkip 必须是 false。
+      expect(mockTts.lastReportSkip, isFalse);
     });
 
     test('端脑不可达时直接报错（不再有本地兜底）', () async {
@@ -503,6 +521,40 @@ void main() {
       await container.read(chatProvider.notifier).speakLastResponse();
 
       expect(mockTts.speakCalled, isTrue);
+      expect(mockTts.lastText, equals('这是一条测试回复'));
+      // ⚠️ **手动朗读 ⇒ 要报出去**（用户明确要求出声 ⇒ ⇒ 静音跳过必须
+      // 让用户看见「为什么没声」）⇒ ⇒ reportSkip 是 true。
+      expect(mockTts.lastReportSkip, isTrue);
+    });
+
+    test('自动朗读被跳过 ⇒ 那条气泡上标「已跳过」＋ 有一个「仍要朗读」可点',
+        () async {
+      // ⚠️ **用户 2026-11-16 原话**：「回复的时候给个开关提示如果用户执意
+      // 要打开也可以打开」⇒ ⇒ 跳过**不许**吞掉声音 ⇒ ⇒ 气泡上必须看得见
+      // 「为什么没声」＋ 有一个开关。
+      mockTts.result =
+          const TtsSpeakResult.skippedMuted('设备处于静音或振动档');
+
+      await container.read(chatProvider.notifier).generateResponse('测试');
+
+      final state = container.read(chatProvider);
+      final assistant =
+          state.messages.lastWhere((m) => m.role == ChatRole.assistant);
+      expect(assistant.ttsSkipped, isTrue);
+      expect(assistant.ttsSkipReason, contains('静音'));
+      // ⚠️ **自动朗读那一条不许被 force**（否则安静判定形同虚设）。
+      expect(mockTts.lastForce, isFalse);
+    });
+
+    test('「仍要朗读」⇒ force == true（绕过安静判定 —— 用户执意要听）',
+        () async {
+      await container.read(chatProvider.notifier).generateResponse('测试');
+
+      await container
+          .read(chatProvider.notifier)
+          .speakText('这是一条测试回复', force: true);
+
+      expect(mockTts.lastForce, isTrue);
       expect(mockTts.lastText, equals('这是一条测试回复'));
     });
   });

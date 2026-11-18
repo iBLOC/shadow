@@ -34,7 +34,7 @@ import { FeishuPublishedCard } from '../components/chat/FeishuPublishedCard';
 import { AudioEventChip } from '../components/chat/AudioEventChip';
 import { MessageSpeakButton } from '../components/chat/MessageSpeakButton';
 import { ToolCallMessageCard } from '../components/chat/ToolCallMessageCard';
-import { A2uiPanel } from '../components/chat/A2uiPanel';
+import { A2uiOpsSurface } from '../components/chat/A2uiToolSurface';
 import { BrainFaceBanner } from '../components/chat/BrainFaceBanner';
 import { ComputerUsePendingModal } from '../components/computerUse/ComputerUsePendingModal';
 import { RecordingPanel } from '../components/recording/RecordingPanel';
@@ -44,7 +44,14 @@ import {
   desktopClientTools,
   parseToolArgs,
 } from '../lib/clientTools';
-import type { Conversation, ConversationKind, Message, RecordingMode, ToolCallMessage } from '../types';
+import type {
+  A2uiSurfaceMessage,
+  Conversation,
+  ConversationKind,
+  Message,
+  RecordingMode,
+  ToolCallMessage,
+} from '../types';
 import {
   Send,
   Plus,
@@ -129,10 +136,6 @@ export function ConversationPage() {
   const [stagedImages, setStagedImages] = useState<StagedImage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
-  // A2UI panel — the brain draws the screen for us (see `components/chat/A2uiPanel.tsx`).
-  // ⚠️ The panel fetches its own surface from `POST {baseUrl}/a2a`; it is *not*
-  // part of the chat message stream, so it has its own open/close state.
-  const [showA2ui, setShowA2ui] = useState(false);
   const createMenuRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // R-11 — computer-use preview-before-commit state. Modal lifecycle is
@@ -605,6 +608,27 @@ export function ConversationPage() {
               },
               // lobe 自己跑的工具结果：页面今天**不**单独渲染 ⇒ ⇒ 不画卡片。
               onToolResult: () => {},
+              // ⚠️ **AG-UI 承载的那块面**（官方 `ACTIVITY_SNAPSHOT`）⇒ ⇒
+              // 它落在**这一轮的话**下面 ⇒ ⇒ 不是另开一块面板。
+              onA2uiSurface: (ops, messageId) => {
+                const surface: A2uiSurfaceMessage = { messageId, messages: ops };
+                if (!streamingId) {
+                  // ⚠️ 这一轮**只有面、没有话** ⇒ ⇒ 也要落一条消息
+                  // ⇒ ⇒ 否则面无处安放 ⇒ ⇒ 用户什么都看不到。
+                  streamingId = crypto.randomUUID();
+                  addMessage(activeConversationId, {
+                    id: streamingId,
+                    role: 'assistant',
+                    content: '',
+                    timestamp: new Date(),
+                    a2ui_surface: surface,
+                  });
+                } else {
+                  updateMessage(activeConversationId, streamingId, {
+                    a2ui_surface: surface,
+                  });
+                }
+              },
             },
           );
           accumulated = turn.text;
@@ -942,24 +966,6 @@ export function ConversationPage() {
         {/* Says it out loud when this app's own endbrain face is not the
             one answering on 60080 — see src/lib/brainFace.ts. */}
         <BrainFaceBanner />
-        <div className="flex items-center justify-end gap-2 border-b border-border px-4 py-1.5">
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<Sparkles size={16} />}
-            onClick={() => setShowA2ui((v) => !v)}
-            data-testid="a2ui-toggle"
-          >
-            {t('surface.a2ui')}
-          </Button>
-        </div>
-        {showA2ui ? (
-          <A2uiPanel
-            baseUrl={telencephalonClient.getBaseUrl()}
-            apiKey={telencephalonClient.getApiKey()}
-            onClose={() => setShowA2ui(false)}
-          />
-        ) : null}
         {activeConversation ? (
           activeConversation.kind === 'audio' || activeConversation.kind === 'video' ? (
             <RecordingPanel
@@ -1098,14 +1104,18 @@ export function ConversationPage() {
                           />
                         ) : msg.feishu_published ? (
                           <FeishuPublishedCard data={msg.feishu_published} />
-                        ) : (
+                        ) : msg.content.trim() !== '' || !msg.a2ui_surface ? (
                           <div className={cn(
                             'whitespace-pre-wrap break-words rounded-lg px-4 py-3 text-sm leading-relaxed',
                             msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'border border-border bg-card text-foreground'
                           )}>
                             {msg.content}
                           </div>
-                        )}
+                        ) : null}
+                        {msg.a2ui_surface ? (
+                          // ⚠️ **面画在这条消息下面** —— 不是顶部面板、不是另开一页。
+                          <A2uiOpsSurface messages={msg.a2ui_surface.messages} />
+                        ) : null}
                         <div className={cn(
                           'flex items-center gap-2 px-2 text-xs text-muted-foreground',
                           msg.role === 'user' && 'flex-row-reverse text-right'

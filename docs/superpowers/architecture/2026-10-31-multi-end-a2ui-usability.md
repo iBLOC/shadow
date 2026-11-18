@@ -3,6 +3,32 @@
 > 2026-10-31 · 承接《三端功能清单对齐审计》（同日）
 > 范围：桌面端（`shadow-desktop`）/ 移动端（`shadow-mobile`）/ 设备端（`shadow-esp32`）/ 服务端（`telencephalon` 及其叶区）
 > 方法：不看文档宣称，只看**代码里真实存在的实现与连线**；所有结论带 `file:line` 证据。
+> ⚠️ **2026-11-17 更新 —— 这份文件是 2026-10-31 那**一轮**的评估记录，现状已变。**
+>
+> A2UI 已升到**官方 v1.0**：客户端（移动端 `a2ui_core` + `a2ui_flutter`；桌面端 `@a2ui/web_core` + `@a2ui/react`）**换官方 SDK**（旧的 `genui` / `genui_a2ui` 已被官方点名弃用）
+> ⇒ ⇒ **§6.5「桌面端自写协议栈」那一格已作废**；
+> 服务端（端脑 `POST /a2a`）按**客户端声明的版本**分派（v1.0 / v0.8 两路并存 ⇒ 旧客户端不断）
+> ⇒ ⇒ **§3.4 / §6.3 描述的 v0.8 形状是「旧客户端那一路」，不再是唯一形状**；
+> 跨端契约 fixture 也**分家**了：`fixtures/a2ui/tasks_surface.json` / `tasks_sse.txt` / `tasks_sse_empty.txt` ＝ **v1.0** 那份，
+> `tasks_surface_v08.json` / `tasks_sse_v08.txt` / `tasks_sse_empty_v08.txt` ＝ **v0.8** 那份。
+>
+> ⇒ ⇒ **当前状态看影仓 `AGENTS.md` 与 `agent-surface.json`**；本文件保留为那轮的取证记录。
+>
+> ⚠️ **2026-11-17（第二刀）更新 —— 面向用户的 A2UI 面改走 **AG-UI** 承载，A2A 一行没删**
+>
+> 用户裁决逐字：「agui 主要是对用户 和 agent 间无关」＋「多种协议尽量都要兼容 所以保留 a2a」
+> ⇒ ⇒ **面只有一份、承载有两条**（§6.3 那一格扩成两格）：
+>
+> · **AG-UI（对用户那条）**：端脑在 `ag-ui:stream` 里发**官方** `ACTIVITY_SNAPSHOT`
+>   （`type` ＋ `messageId:"a2ui-surface-<surfaceId>"` ＋ `activityType:"a2ui-surface"`
+>   ＋ `content:<A2UI v1.0 的 ops 数组>` ＋ `replace:true` —— **字段数恰为 5**）
+>   ⇒ ⇒ 两端客户端认出它 ⇒ ⇒ 把 ops **原样**喂进官方 A2UI SDK ⇒ ⇒ **零翻译**；
+> · **A2A（agent↔agent ＋ 旧客户端那条）**：`POST /a2a` **一行没删**，仍按客户端声明
+>   协商版本 ⇒ ⇒ v0.8 旧客户端那条路**没断**。
+>
+> ⇒ ⇒ 两条承载**共用端脑 `a2ui::render_view` 这一个产出函数** ⇒ ⇒ 面逐字同形；
+> ⇒ ⇒ 官方形状由父仓 `scripts/check-agui-a2ui-wire.mjs` 钉着（契约文件
+> `fixtures/a2ui/agui_activity_v1.json` —— 父仓／端脑／桌面端／移动端**四处逐字一致**）。
 
 ---
 

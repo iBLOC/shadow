@@ -3,6 +3,7 @@ mod brain_face;
 mod computer_use;
 mod config_manager;
 mod crypto;mod device_notifications;
+mod device_audio;
 
 mod external_tools;
 mod feishu_mcp;
@@ -469,6 +470,10 @@ pub fn run() {
             // 这台机器的 admin token（端脑面认它）—— 前端要拿它去带
             // `X-Admin-Token`。⚠️ 别把它打进日志。
             admin_token::get_admin_token,
+            // **设备是不是静音了**（媒体音量 0 / 端点被 mute）—— 三态，
+            // 「查不到」是第三态（不是「有声音」）⇒ ⇒ 前端据此决定要不要
+            // 白烧一次 TTS 算力。⚠️ 查不到时**按「有声音」处理**。
+            device_audio::device_audio_state,
             // 「切到远端大脑」的开关（零信任客户端模式，重启后生效）。
             ziti_client_config::ziti_client_get_config,
             ziti_client_config::ziti_client_set_config,

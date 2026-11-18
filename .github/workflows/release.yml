@@ -637,6 +637,144 @@ jobs:
         with:
           path: shadow
 
+      # ── 端脑运行时（libencephalon.so）─────────────────────────────────
+      # ⚠️ **为什么这一步以前不存在**（2026-11-17 补）：
+      #
+      # - `libencephalon.so` **被 .gitignore 排除**（.gitignore:72）⇒ ⇒ CI 的
+      #   `actions/checkout` **拿不到它**；
+      # - 而它就是**端脑本体**（端脑面 / A2A / 推理面 / 海马体面都长在它里面）
+      #   ⇒ ⇒ **APK 里没有它 ⇒ 装了也不能用**；
+      # - 而 Kotlin 侧把 `UnsatisfiedLinkError` **catch 掉** ⇒ ⇒ **失败长得像
+      #   成功**（App 起来了、聊天面整个不在、零报错）。
+      #
+      # ⇒ ⇒ 所以发布链必须**自己编**那份 `.so`（交叉编译 aarch64-linux-android）。
+      #
+      # ⚠️ **档位 = mobile-memory**：海马体是**功能必需** ⇒ ⇒ 端脑在手机上**带**
+      # 海马体 ⇒ ⇒ `/hippocampus/*` 面随 state 挂上来 ⇒ ⇒ 记忆/任务落在本机。
+      #
+      # ⚠️ **兄弟仓钉死 commit**（与 desktop job 同一份清单）⇒ ⇒ 同一个 tag 两次
+      # 发布得到**同一份**二进制（可复现）。
+      - name: Require cross-repo token
+        env:
+          IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "$IBLOC_TOKEN" ]; then
+            echo "::error::secrets.IBLOC_TOKEN is not configured."
+            echo "::error::The iBLOC stack is a local-path workspace — the sibling
+            echo "::error::repos are private and cannot be checked out without it."
+            exit 1
+          fi
+
+      - name: Checkout telencephalon
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/telencephalon
+          path: telencephalon
+          ref: ecc5f9e0276f45ff2170d3334623a61d4193c074
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout encephalon
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/encephalon
+          path: encephalon
+          ref: 9027e3dd17cb74643a476e3d31e1eb7b8507b976
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout diencephalon
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/diencephalon
+          path: diencephalon
+          ref: 7d1f596ce1495d21562c65236f300880e53a5d4c
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout synapse
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/synapse
+          path: synapse
+          ref: 28979f93368bfeb9c71fee05c6aeb03ede393954
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout prefrontal
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/prefrontal
+          path: prefrontal
+          ref: e62af06068173a0c6650bab7d0eb803300d332db
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout hippocampus
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/hippocampus
+          path: hippocampus
+          ref: ae6b73aa74506ec9c7e07d965df4c45960f58650
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout neuron
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/neuron
+          path: neuron
+          ref: c14b77fd65bdb290ba113c558022b5d7f8308cfe
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout ziti-rust
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/ziti-rust
+          path: ziti-rust
+          ref: 2403c576d2f154df9354470bb260e7e941f20733
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      # ⚠️ **工具链按仓内同一份约定装**（`RUSTUP_TOOLCHAIN` 是全局 env：
+      # release.yml:62）⇒ ⇒ 名字必须是 `RUSTUP_TOOLCHAIN`（带 UP）⇒ ⇒ 写错
+      # ⇒ ⇒ rustup 完全无视 ⇒ ⇒ 装了、全绿、跑的不是它。
+      # ⚠️ **钉住的版本必须显式装** —— runner 预装的 stable 里未必有那个精确
+      # 版本 ⇒ ⇒ 必须显式装（否则 cargo 报 toolchain not installed）。
+      - name: Setup Rust (for the brain runtime)
+        shell: bash
+        run: |
+          set -eu
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --target aarch64-linux-android
+          rustup default "$RUSTUP_TOOLCHAIN"
+          rustc --version
+          cargo --version
+          # ⚠️ **必须断言它真的生效了** —— 装了不等于用了。
+          active="$(rustup show active-toolchain)"
+          echo "active toolchain: $active"
+          case "$active" in
+            "$RUSTUP_TOOLCHAIN"*) echo "✅ pinned toolchain is active" ;;
+            *) echo "::error::pinned toolchain is NOT active (active=$active)"; exit 1 ;;
+          esac
+      - name: Install protoc (lance-encoding build script needs it)
+        shell: bash
+        run: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          protoc --version
+
+      - name: Build the brain runtime (libencephalon.so, mobile-memory)
+        shell: pwsh
+        run: |
+          # ⚠️ **档位 mobile-memory** ⇒ 端脑带海马体（功能必需）
+          ./encephalon/scripts/build-android.ps1 -Profile mobile-memory
+
+      - name: Verify the brain runtime landed in the APK source tree
+        run: |
+          set -e
+          SO=shadow/shadow-mobile/android/app/src/main/jniLibs/arm64-v8a/libencephalon.so
+          if [ ! -f "$SO" ]; then
+            echo "::error::the brain runtime was not built — the APK would ship
+            echo "::error::without it (the app starts but has no brain)."
+            exit 1
+          fi
+          ls -l "$SO"
+
       - name: Setup Java
         uses: actions/setup-java@v6
         with:

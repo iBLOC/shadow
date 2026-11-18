@@ -5,14 +5,15 @@
  *
  * 客户端会**主动**取消自己的请求：
  *
- * - A2UI 面板收起 / 切页 ⇒ `controller.abort()`（`components/chat/A2uiPanel.tsx`）
  * - 模型下载被用户取消 ⇒ `AbortController.abort()`（`stores/modelDownloadStore.ts`）
  * - 任何 `useEffect` 的 cleanup（React StrictMode 还会跑两遍）
  *
  * ⇒ 这些请求以 `AbortError: signal is aborted without reason` 结束
  * ⇒ ⇒ 而全局 fetch 拦截器（`lib/httpInterceptor.ts`）**原来**把它当成
- * 「网络故障」弹给用户 ⇒ ⇒ **用户自己收起一个面板，屏幕上冒出一个红框**
+ * 「网络故障」弹给用户 ⇒ ⇒ **用户自己按的取消键，屏幕上冒出一个红框**
  * ⇒ ⇒ 那不是故障，是我们自己按的取消键 ⇒ ⇒ 弹框只会训练用户忽略弹框。
+ * （⚠️ 2026-11-18：A2UI 面板已摘除 —— 它当初也是这条清单上的一员；
+ * 机制本身还在，别因为那一条退场就把护栏拆了。）
  *
  * ⚠️ **超时不算「有意取消」** —— `AbortSignal.timeout()` 的 reason 是
  * `TimeoutError` ⇒ 那是**真故障** ⇒ 必须报出去。

@@ -1,8 +1,8 @@
+import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:genui/genui.dart';
 
-import '../../providers/genui_provider.dart';
+import '../../providers/a2ui_provider.dart';
 import '../../services/client_tools/client_tool_registry.dart';
 
 /// **对话里内联**的 A2UI 那一块 —— 画在**承载这次工具调用的那条消息里**。
@@ -18,21 +18,15 @@ import '../../services/client_tools/client_tool_registry.dart';
 /// 端脑的 A2UI 产出面 `POST /a2a` **只**按固定视图（`tasks` / `agents`）
 /// 渲染 ⇒ ⇒ 它**进不了对话**（不读对话上下文、不进模型）。
 ///
-/// 而「**模型在对话里点名要界面**」这条路是通的 ——
-/// 客户端工具 `show_a2ui_surface`（模型点名 ⇒ 设备取回 surface）
+/// 而「**模型在对话里点名要界面**」这条路是通的 —— 客户端工具
+/// `show_a2ui_surface`（模型点名 ⇒ 设备取回 surface）
 /// ⇒ ⇒ 界面**画在它被点名的那句话下面**
 /// ⇒ ⇒ **不是顶部面板、不是另开一页**。
 ///
-/// ## 它为什么只画「画得出」的 surface
-///
-/// A2UI 的语义是「先 `surfaceUpdate` 递组件，再 `beginRendering`
-/// 说『从哪个根开始画』」⇒ ⇒ 只有 `surfaceUpdate` ⇒ **画不出东西**
-/// ⇒ ⇒ 只画半成品比不画更糟（用户看到一块空白，还以为界面坏了）。
-///
 /// ## 界面从哪来
 ///
-/// `GenUiSurface` 画的是 **processor 里的定义** ⇒ ⇒
-/// 事件**必须先喂进 processor**（`GenUIAgentService.ingestSurfaceEvents`）
+/// `A2uiSurface` 画的是 **processor 里的定义** ⇒ ⇒
+/// 消息**必须先喂进 processor**（`A2uiAgentService.ingestSurfaceEvents`）
 /// ⇒ ⇒ surface 才存在 ⇒ ⇒ 这里才画得出组件树。
 class A2uiInlineBlock extends ConsumerWidget {
   /// 这次工具调用（报告那句 + 画出来的 surface 都在它身上）。
@@ -66,10 +60,8 @@ class A2uiInlineBlock extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (report != null) _ReportLine(report: report),
-        // ⚠️ **只有真的要画界面时才起 A2UI 服务** ——
-        // 没有 surface ⇒ 没必要造一个（它带着一个 http.Client）。
         if (surfaceIds.isNotEmpty)
-          _A2uiSurfaces(surfaceIds: surfaceIds),
+          A2uiSurfacesBlock(surfaceIds: surfaceIds),
       ],
     );
   }
@@ -94,29 +86,51 @@ class _ReportLine extends StatelessWidget {
   }
 }
 
-/// 那块界面本身。
-class _A2uiSurfaces extends ConsumerWidget {
+/// 那几块面 —— **按 id 画**（谁画出来的那块面，谁负责画它）。
+///
+/// ⚠️ **必须是同一个 service 实例** —— 消息喂进的是**那个** processor
+/// ⇒ ⇒ 换一个 service ⇒ 换了一个空 processor ⇒ 画出来是空白。
+class A2uiSurfacesBlock extends ConsumerWidget {
   final List<String> surfaceIds;
 
-  const _A2uiSurfaces({required this.surfaceIds});
+  const A2uiSurfacesBlock({super.key, required this.surfaceIds});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // ⚠️ **必须是同一个 service 实例** —— 事件喂进的是**那个** processor
+    // ⚠️ **必须是同一个 service 实例** —— 消息喂进的是**那个** processor
     // ⇒ ⇒ 换一个 service ⇒ 换了一个空 processor ⇒ 画出来是空白。
-    final service = ref.watch(genUIAgentServiceProvider);
+    final service = ref.watch(a2uiAgentServiceProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (final surfaceId in surfaceIds)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: GenUiSurface(
-              host: service.messageProcessor,
+            child: _A2uiSurfaceView(
+              service: service,
               surfaceId: surfaceId,
             ),
           ),
       ],
     );
+  }
+}
+
+/// 一个 surface —— 官方 `A2uiSurface` 渲染器。
+///
+/// ⚠️ **找不到这个 surface ⇒ 画空白，而不是崩** ——
+/// 「工具成功了、界面却是空的」是**失败长得像成功** ⇒ ⇒ 宁可什么都不画，
+/// 也不能画一个「看起来正常」的空面板。
+class _A2uiSurfaceView extends StatelessWidget {
+  final A2uiAgentService service;
+  final String surfaceId;
+
+  const _A2uiSurfaceView({required this.service, required this.surfaceId});
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = service.surfaceById(surfaceId);
+    if (surface == null) return const SizedBox.shrink();
+    return A2uiSurface(surface: surface);
   }
 }

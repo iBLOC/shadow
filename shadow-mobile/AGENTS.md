@@ -9,6 +9,23 @@
 ③ **⚠️ 仍然欠着的** —— ❶ **真机那一格仍空**（要重编 .so ＋ 真下载）⇒ **不许说「真机已验证」**；❷ 历史库段**不记忆展开状态**（每次开弹窗默认折叠）⇒ 小体验债；❸ 来源选择器没做（条目 `sources` 数组已解析在端脑回包里，客户端若某条魔搭镜像缺货，目前没有 UI 能切到 HF 兜底 ⇒ 下一刀按需做）。
 
 ④ **⚠ 圈码：本条占 U+37BE（㞾）** —— 承 父仓 U+37BD 条的取号（逐字扫十二本账本 ⇒ U+37BE 全局零命中 ＋ 高于本账水位 U+37B4）⇒ 字形由 String.fromCodePoint() 生成，不手打。
+
+**Updated**: 2026-11-18 (㞴 **「对话与 A2UI 合成**一个页面**了 —— 而这一刀真正的收获是：**「摘掉重复的第二条承载」不等于「丢能力」**」** —— 用户诉求逐字（「现在移动端 对话也没按和agent2ui页面还是两个页面有没有一种可能合并为一个页面使用a2ui 传输协议使用ag-ui」）＋ 承 父仓 U+37B3 条（移动端 A2UI 承载收口那一刀），本条记**这一侧落了什么**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-18 | authority=measured | scope=project | source=用户逐字（「现在移动端 对话也没按和agent2ui页面还是两个页面有没有一种可能合并为一个页面使用a2ui 传输协议使用ag-ui」）＋ 父仓 U+37B3 条 ｜ 改动：移动端（**改** lib/screens/chat_screen.dart（摘掉 AppBar 上那个面板开关 ＋ body 顶部那块独立面板）＋ **改** lib/providers/a2ui_provider.dart（摘掉 useA2uiModeProvider ＋ 四个只服务面板的观察面 provider）＋ **改** lib/screens/conversation_screen.dart（注释不许指向已删的文件）＋ **新** test/widget/a2ui_single_carrier_test.dart（三条）＋ **改** test/widget/chat_screen_home_test.dart ＋ test/widget/chat_screen_test.dart ＋ test/widget/message_quote_test.dart ＋ test/widget/test_helper.dart；**回收站（可恢复）**：lib/widgets/chat/a2ui_panel.dart ＋ a2ui_view.dart ＋ a2ui_answer_state.dart ＋ test/widget/a2ui_coexist_test.dart ＋ a2ui_empty_state_test.dart ＋ a2ui_answer_states_test.dart）｜ 读数：flutter analyze --no-pub **61 issues**（0 error ＋ 0 warning ＋ 61 存量 info ⇒ 与基线**逐数相同**）＋ flutter test --no-pub **1137 过 / 13 跳 / 0 红**（exit 0）＋ A2UI 相关测试 **23 过 / 0 红** ＋ 父仓新闸 **8/8**（自检 **14/14**） | status=active | supersedes=none
+
+① **✅ 这一侧落了什么** —— ❶ **`lib/screens/chat_screen.dart`**：摘掉 AppBar 上那个常驻的 widgets 开关按钮 ＋ body 顶部那块独立面板（封顶屏高 42% 的那块）⇒ ⇒ 页面上**只剩对话那一个输入框**；❷ **`lib/providers/a2ui_provider.dart`**：摘掉 useA2uiModeProvider（面板开关）＋ **四个只服务面板的观察面 provider**（连接状态 ＋ surface 列表 ＋ 端脑原话 ＋ 失败原因）⇒ ⇒ 顺带甩掉一个坑：那四个都挂在**广播流**上（不重放 ⇒ 「回复先到、provider 后订阅」会漏掉那一句端脑原话，真机踩过）⇒ ⇒ 而 **AG-UI 路没有这个坑**（请求-应答的 SSE，一轮读完）⇒ ⇒ 不需要观察面；❸ **回收站（可恢复）**：a2ui_panel.dart ＋ a2ui_view.dart ＋ a2ui_answer_state.dart ＋ 三个只服务面板的测试；❹ **保留**：lib/services/a2ui/a2ui_agent_service.dart（AG-UI 内联**依赖**它的官方 processor）＋ lib/agui/ 那一整套 ＋ a2ui_inline_block.dart。
+
+② **✅ 为什么摘面板不丢能力** —— 面板能给的只有 **tasks** 与 **agents** 两个视图 ⇒ ⇒ 端脑在 AG-UI 路里对**同样两个视图**用**同一套** a2ui::render_view 产出面 ⇒ ⇒ 两边**逐字同形** ⇒ ⇒ 端脑的关键词兜底同样生效（resolve_view：「任务」⇒ tasks）⇒ ⇒ 用户在**对话框**里说一句「我的任务」就出面 ⇒ ⇒ 而且**这一条记会话**（面板那条不记，端脑每次现造 context_id）。
+
+③ **✅ 新判据** —— **新** test/widget/a2ui_single_carrier_test.dart 三条：AppBar 上**没有**「另一个界面」的开关 ＋ 页面上**只有对话那一个输入框**（面板那个输入框的占位文案不许再出现）＋ 对话的入口一个不少（摘面板没误伤）⇒ ⇒ 而「面**真的**内联在消息里」那条由 a2ui_inline_block_test.dart 钉着 ⇒ ⇒ 「**只有一条承载**」这句话**可判**。
+
+④ **⚠️ 读数** —— flutter analyze --no-pub **61 issues**（0 error ＋ 0 warning ＋ 61 存量 info）⇒ ⇒ 与基线**逐数相同**（本刀一度多出 6 条 unused import warning ⇒ 已清）＋ flutter test --no-pub **1137 过 / 13 跳 / 0 红**（exit 0）＋ A2UI 相关测试 **23 过 / 0 红**。⚠️ 父仓那道闸**同刀加固过**（原先只盯**新名** a2ui_* ⇒ ⇒ **仓库 HEAD 里存的是旧名** agent2ui_* ⇒ ⇒ 把 HEAD 那份面板恢复回来会**从闸底下溜过去**）⇒ ⇒ 读数随之更新为 **8/8**（自检 **14/14**）＋ 真变异**八道**（七道各**恰好一条红** ＋ 「恢复 HEAD 那份真面板文件」那道红 **M2 ＋ M8**）⇒ ⇒ 八次还原 sha256 **逐字一致** ⇒ ⇒ 本刀摘掉的那三份**两代命名都在闸的名单里**（新名 a2ui_* ＋ 旧名 agent2ui_*）。
+
+⑤ **⚠️ 仍然欠着的** —— ❶ **客户端工具画的那块面，取数还走 A2A**（chat_provider 的 fetchSurfaceEvents）⇒ ⇒ 呈现已内联、**数据源还没归位** ⇒ ⇒ 下一刀；❷ 四把 i18n 键（a2ui／askA2ui／a2uiReady／a2uiNoConnection 等）现在**没有读者**⇒ ⇒ 死键，i18n 闸只查完整性不查未使用 ⇒ ⇒ 不红；❸ **真机那一格仍空** ⇒ ⇒ 「手机上真的一个页面」**未在真机验过**；❹ 端脑关键词兜底会**过度触发**（随口说「这个任务的进度」也画看板）⇒ ⇒ 既有行为。
+
+⑥ **⚠ 圈码：本条占 U+37B4（㞴）** —— 取号用**官方口径**（父仓 scripts/check-ledger-codepoint-take.mjs --next）⇒ ⇒ 候选那一枚（**父仓那条已占**）⇒ ⇒ 但**头一版取的那枚被兄弟会话在落笔之后抢走**（端脑那本占掉了它）⇒ ⇒ 逐字扫**八本账本**后**再往后取** ⇒ ⇒ U+37B4 起全局零命中 ⇒ ⇒ 字形由 String.fromCodePoint() 生成，不手打；本条只动移动端 ⇒ ⇒ **只占一枚**（父仓那条占 U+37B3）。⚠️ **这一枚改过一次** ⇒ ⇒ 改号重落 ＋ 立刻复跑圈码闸才作数。
+
 **Updated**: 2026-11-17 (㞰 **「聊天框能发**表格**了 —— 而这一刀真正的收获是：**「二进制不许当文本解」那条纪律，在**放行**的时候也要守住」」** —— 用户诉求逐字（「……聊天框支持发送excel相关格式……」）＋ 承 父仓 U+37AE 条（表格导入 ⇒ agent 建本体那一刀），本条记**这一侧落了什么**、**读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-17 | authority=measured | scope=project | source=用户逐字（「……聊天框支持发送excel相关格式……」）＋ 父仓 U+37AE 条 ｜ 改动：移动端（**改** lib/multimodal/attachment_encoder.dart（**新** AttachmentKind.spreadsheet 这一档 ＋ xlsx／xlsm 的 MIME ＋ 按 MIME 反查档位时**大小写无关**）＋ **改** test/unit/attachment_wire_test.dart（Word 仍拒 ＋ 表格认得 ＋ MIME 大小写无关））｜ 读数：flutter test test/unit/attachment_wire_test.dart **20/20**（原 17 ⇒ **+3**）| status=active | supersedes=none

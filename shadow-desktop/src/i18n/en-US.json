@@ -317,7 +317,9 @@
       "tooltip": "{{tokens}} tokens · {{seconds}}s"
     },
     "speak": "Read aloud",
-    "stopSpeaking": "Stop speaking"
+    "stopSpeaking": "Stop speaking",
+    "speakSkippedMuted": "Device is muted — read-aloud skipped",
+    "speakAnyway": "Read aloud anyway"
   },
   "lobes": {
     "prefrontal": "Prefrontal Lobe",
@@ -346,6 +348,13 @@
     "vision": "Vision",
     "default": "Default",
     "visionSupport": "Vision",
+    "inputModalities": "Input",
+    "inputModalitiesSource": "Input modalities source",
+    "inputModalitiesSourceUpstream": "Upstream",
+    "inputModalitiesSourceCatalog": "Preset from official docs",
+    "inputModalitiesSourceDefault": "Default (text only)",
+    "entrySourcePreset": "Doc preset",
+    "entrySourcePresetHint": "The upstream model list doesn't list it — added from the official docs",
     "functions": "Functions",
     "loadingModels": "Loading models...",
     "configureProviders": "Configure your LLM providers and models",
@@ -1288,7 +1297,9 @@
     "empty": "Catalog is empty (no neuron embedded in the brain, or no catalog source configured)."
   },
   "clientTools": {
-    "imageGenerated": "Generated {{count}} image(s) ({{size}}) and showed them to the user."
+    "imageGenerated": "Generated {{count}} image(s) ({{size}}) and showed them to the user.",
+    "videoGenerated": "The video was generated and shown to the user: {{url}}",
+    "videoProcessing": "The video is still rendering (task {{taskId}}, model {{model}}) — ask me again in a moment to fetch it."
   },
   "flows": {
     "title": "Telencephalon Flows",
@@ -1485,6 +1496,8 @@
     "model": "Model",
     "lastRefresh": "Last refresh",
     "refreshModels": "Refresh models",
+    "modelsFromDocs": "Preset from the provider's official docs (not a live list)",
+    "modelsPartlyFromDocs": "{{count}} of them were added from the official docs (the upstream model list doesn't list them)",
     "presetTab": "Presets",
     "customTab": "Custom",
     "addAndFetch": "Add & fetch models",
@@ -1594,12 +1607,10 @@
     "voice": "Voice",
     "livestream": "Livestream",
     "customerService": "Customer service",
-    "a2ui": "Generative UI",
     "tasks": "Tasks",
     "group": "Group",
     "document": "Document",
     "previews": "Previews",
-    "agents": "Agents",
     "models": "Models",
     "modelDownload": "Model download",
     "modelOnboarding": "Model onboarding",
@@ -1631,8 +1642,8 @@
     "missingComponent": "Missing component",
     "unknownComponent": "Unknown component",
     "surfaceDrawn": "Expanded the {{label}}.",
-    "surfaceNotDrawn": "The telencephalon did not draw an interface this time. It said: {{words}}",
-    "surfaceNotDrawnSilent": "The telencephalon did not draw an interface this time.",
+    "surfaceNotDrawn": "The brain did not draw an interface this time. It said: {{words}}",
+    "surfaceNotDrawnSilent": "The brain did not draw an interface this time.",
     "labelTasks": "task board",
     "labelAgents": "agent list"
   },
@@ -1655,6 +1666,8 @@
     "appliedButNotCached": "Applied to the brain, but the local copy was not saved - this tier will reset after a restart.",
     "failed": "Failed to set the capability defaults",
     "unusableNow": "These tiers point at a model this brain has not registered - the setting is saved, but it cannot run until the engine is registered.",
+    "unservedNow": "These tiers are not served by this brain yet (no endpoint behind them) - the setting is saved, but the brain cannot run them yet.",
+    "optionUnserved": "(this brain does not serve this tier yet - it cannot run it)",
     "llm": "Text model",
     "asr": "Speech recognition",
     "tts": "Speech synthesis",
@@ -1663,7 +1676,8 @@
     "embedding": "Embedding model",
     "vision": "Vision model",
     "forecast": "Forecast model",
-    "image_gen": "Image generation"
+    "image_gen": "Image generation",
+    "video_gen": "Video generation"
   },
   "lobeModelMatrix": {
     "title": "Model per lobe",

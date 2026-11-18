@@ -1238,7 +1238,7 @@
   "zitiSaveFailed": "保存失败",
   "@zitiSaveFailed": {},
   "capabilityDefaultsUnusableNow": "下面这几档指向的模型这台大脑还没注册 —— 设置存住了，但引擎注册前跑不起来。",
-  "capabilityDefaultsUnservedNow": "下面这几档这台大脑还没服务（背后没有对应的调用入口）—— 设置存住了，但端脑现在调不了。",
+  "capabilityDefaultsUnservedNow": "下面这几档这台大脑还没服务（背后没有对应的调用入口）—— 设置存住了，但大脑现在调不了。",
   "providersDownloadModels": "下载本地模型",
   "providersDownloadedOnly": "已下载",
   "providersDownloadAction": "下载",

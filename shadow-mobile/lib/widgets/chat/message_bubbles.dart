@@ -76,13 +76,23 @@ class ImageMessageBubble extends StatelessWidget {
   final String? imagePath;
   final VoidCallback? onTap;
 
-  const ImageMessageBubble({super.key, required this.imagePath, this.onTap});
+  /// ⚠️ **长按** ⇒ ⇒ 「保存到相册 / 分享到微信」（2026-11-17）—— 用户
+  /// 自己发进来的那张图**也能带走**（不是只有工具产出的图能）。
+  final VoidCallback? onLongPress;
+
+  const ImageMessageBubble({
+    super.key,
+    required this.imagePath,
+    this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (imagePath == null) {
       return GestureDetector(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -99,6 +109,7 @@ class ImageMessageBubble extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: fileExists

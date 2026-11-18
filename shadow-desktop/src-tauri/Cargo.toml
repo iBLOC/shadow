@@ -232,6 +232,12 @@ windows = { version = "0.61", features = [
     "UI_Notifications_Management",
     # UserNotification.AppInfo / AppDisplayInfo（来源应用显示名）。
     "ApplicationModel",
+    # 设备静音探针（src/device_audio.rs）—— COM 端点音量（IAudioEndpointVolume
+    # 拿「托盘静音」开关与主音量标量）＋ waveOut 兜底（设备主音量）。
+    # ⚠️ **只是加特性，不是新增依赖** —— `windows` 本来就是本仓的直接依赖。
+    "Win32_Media_Audio",
+    "Win32_Media_Audio_Endpoints",
+    "Win32_System_Com",
 ] }
 
 # 2026-11-04: the `ziti-sdk` override was removed — that crate left the

@@ -70,6 +70,27 @@ function mobileArbPath(name: string): string {
 
 const SSE_FIXTURE = readFileSync(fixturePath('tasks_sse.txt'), 'utf8');
 
+/**
+ * 一条端脑形状的 **v1.0** 字节（组件 id 用合法的 §task0§ ⇒ 官方 SDK 建得出面）。
+ *
+ * ⚠️ 为什么不用共享 fixture 那一份：端脑那一份的组件 id 若还没改成合法的
+ * UAX #31 标识符 ⇒ 官方 SDK 会**整条拒掉** ⇒ ⇒ 「画出来了没有」这一格就
+ * 变成了「端脑的 id 合不合法」⇒ ⇒ 那一格由 §a2ui.test.tsx§ 的负控钉。
+ */
+const V1_SSE =
+  'data: {"result":{"kind":"task-status-update","status":{"state":"completed","message":{"kind":"message","role":"agent","parts":[{"kind":"data","data":{"version":"1.0","createSurface":{"surfaceId":"shadow.tasks","catalogId":"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json","components":[{"id":"root","component":"Column","children":["title","task0"]},{"id":"title","component":"Text","text":"# Tasks (1)"},{"id":"task0","component":"TaskCard","catalogId":"https://raw.githubusercontent.com/iBLOC/shadow/main/a2ui/catalogs/v1/catalog.json","title":"写周报","description":"本周进展汇总","status":"in_progress","priority":"high"}]}}}]}},"final":true}}\n\n';
+
+/** V1_SSE 里的那条 A2A 事件（逐字）。 */
+function v1Events(): unknown[] {
+  const out: unknown[] = [];
+  for (const line of V1_SSE.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) continue;
+    out.push(JSON.parse(trimmed.slice('data:'.length).trim()));
+  }
+  return out;
+}
+
 /** fixture 里的事件对象（逐条）。 */
 function fixtureEvents(): unknown[] {
   const out: unknown[] = [];
@@ -139,17 +160,28 @@ describe('客户端工具 show_a2ui_surface', () => {
     expect(tool.parameters?.properties?.view.enum).toEqual(['tasks', 'agents']);
   });
 
-  it('画出来了 ⇒ report 说「已展开」＋ **与 fixture 逐字同形**的事件', async () => {
-    const result = await runTool(SSE_FIXTURE);
+  it('画出来了 ⇒ report 说「已展开」＋ **逐字原样**的事件', async () => {
+    const result = await runTool(V1_SSE);
 
-    // ⚠️ **形状逐字一致** —— 两端吃的是同一批事件。
-    expect(result.a2ui_events).toEqual(fixtureEvents());
+    // ⚠️ **形状逐字一致** —— 两端吃的是同一批事件（客户端**不翻译**）。
+    expect(result.a2ui_events).toEqual(v1Events());
     // ⚠️ **报告说的是真话** —— 画出来了就别说「没画界面」。
     expect(result.report).toBe(
       i18n.t('a2ui.surfaceDrawn', { label: i18n.t('a2ui.labelTasks') }),
     );
     expect(result.report).toContain('任务看板');
     expect(result.report).not.toContain('没有画界面');
+  });
+
+  it('共享 fixture 的事件字节 ⇒ **客户端原样透传**（零翻译）', () => {
+    // ⚠️ **为什么钉这一条**：工具结果里的 §a2ui_events§ 是**给界面那一半**的
+    // ⇒ ⇒ 两端吃的是**同一批字节** ⇒ ⇒ 客户端**不许**改写它们。
+    const events = fixtureEvents();
+    expect(events.length).toBeGreaterThan(0);
+    const part = (
+      events[0] as { result: { status: { message: { parts: { kind: string }[] } } } }
+    ).result.status.message.parts[0];
+    expect(part.kind).toBe('data');
   });
 
   it('端脑只回纯文本（没画界面）⇒ **如实说**，事件那一半是空的', async () => {

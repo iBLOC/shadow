@@ -27,7 +27,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { A2uiHttpError, requestA2uiSurface } from '../../src/lib/a2uiClient';
-import { buildSurfaceFromEvents } from '../../src/lib/a2uiProtocol';
+import {
+  buildSurfaceFromEvents,
+  hasRenderableContent,
+  type A2uiSurface,
+} from '../../src/lib/a2uiProtocol';
 import { API_BASE_URL, checkServerReachable, IS_STRICT, SHADOW_KEY } from './server-check';
 
 /** 冻结的 fixture —— 「协议长什么样」的快照。 */
@@ -66,13 +70,16 @@ function shapeSignature(value: unknown): unknown {
   return typeof value;
 }
 
-/** surface 里第一个非空的文字（标题）。 */
-function firstText(surface: { components?: { component?: Record<string, unknown> }[] } | null): string {
-  for (const component of surface?.components ?? []) {
-    const props = Object.values(component.component ?? {})[0] as
-      | { text?: { literalString?: string } }
-      | undefined;
-    const text = props?.text?.literalString;
+/**
+ * surface 里第一个非空的文字（标题）。
+ *
+ * ⚠️ v1.0 的 Text 是 **字符串**（§Text.text§）⇒ 不是 v0.8 那种
+ * §{literalString: "…"}§ 嵌套。
+ */
+function firstText(surface: A2uiSurface | null): string {
+  for (const component of surface?.componentsModel.getAll().values() ?? []) {
+    if (component.type !== 'Text') continue;
+    const text = component.properties.text;
     if (typeof text === 'string' && text.trim() !== '') return text;
   }
   return '';
@@ -133,7 +140,7 @@ describe('活端脑的 A2UI 字节（走客户端自己那条路）', () => {
     // ⭐ **落点**：客户端能不能把它变成一块**能画出来**的界面。
     const surface = buildSurfaceFromEvents(result.events);
     expect(surface).not.toBeNull();
-    expect(surface?.rendered).toBe(true);
+    expect(hasRenderableContent(surface)).toBe(true);
     expect(surface?.rootId).toBeTruthy();
     expect(firstText(surface)).not.toBe('');
   });

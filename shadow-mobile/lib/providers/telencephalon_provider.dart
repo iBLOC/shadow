@@ -13,6 +13,32 @@ class TelencephalonState {
   final DateTime? lastCheck;
   final String? error;
 
+  /// **记忆面**（`/hippocampus/*`）该打哪台端脑 —— **null = 跟着
+  /// [connection] 走**（= 用户配的那台）。
+  ///
+  /// ⚠️ **为什么记忆面要单独一个地址**（2026-11-17）：
+  /// - 端脑面（聊天 / 身份）归**本机内嵌端脑**（接管期间）；
+  /// - 记忆面归**带海马体的那台**。
+  /// ⇒ ⇒ 以前这台只能是**远端**（因为内嵌端脑**没编**海马体 ⇒ `/hippocampus/*`
+  /// 直接 404）⇒ ⇒ 而**移动端没有任何 UI 能改「后端地址」** ⇒ ⇒ 记忆面
+  /// 恒指默认回环口 `127.0.0.1:60080` ⇒ ⇒ **手机上永远没人监听**
+  /// （内嵌端脑用每次启动都变的随机端口）⇒ ⇒ 记忆页必败。
+  /// ⇒ ⇒ `mobile-memory` 档（内嵌端脑**带**海马体）之后 ⇒ ⇒ 记忆面
+  /// **可以指本机** ⇒ ⇒ 没配远端时它指本机内嵌端脑。
+  final String? memorySurfaceUrl;
+
+  /// 记忆面的门闩（跟 [memorySurfaceUrl] 配套）。
+  ///
+  /// ⚠️ `/hippocampus/*` 在端脑门型表里是 `auto` 门 ⇒ ⇒ 读要 shadow key
+  /// ∪ admin token、写要 admin token ⇒ ⇒ **不带 ⇒ 401**。
+  final String? memorySurfaceKey;
+
+  /// 记忆面的 admin token（**写门只认它** ⇒ ⇒ 只带门闩 ⇒ 写操作 403/401）。
+  ///
+  /// ⚠️ 与 [memorySurfaceKey] 分开 ⇒ ⇒ 两把钥匙**不是一把**（一个是门闩，
+  /// 一个是凭据）⇒ ⇒ 不能塞进同一个字段。
+  final String? memorySurfaceAdminToken;
+
   const TelencephalonState({
     this.connection = const TelencephalonConnection(baseUrl: 'http://127.0.0.1:60080'),
     this.status = TelencephalonStatus.stopped,
@@ -21,7 +47,26 @@ class TelencephalonState {
     this.lobes = const [],
     this.lastCheck,
     this.error,
+    this.memorySurfaceUrl,
+    this.memorySurfaceKey,
+    this.memorySurfaceAdminToken,
+    this.configuredAdminToken,
   });
+
+  /// 记忆面**当前**该打的地址。
+  String get memoryBaseUrl => memorySurfaceUrl ?? connection.baseUrl;
+
+  /// 记忆面**当前**该带的门闩。
+  String? get memoryShadowKey => memorySurfaceKey ?? connection.apiKey;
+
+  /// 记忆面**当前**该带的 admin token。
+  ///
+  /// ⚠️ 优先「接管期间」那把（内嵌端脑自己的）⇒ ⇒ 否则用「配置里那把」
+  /// （远端自己的）⇒ ⇒ **写门**（`auto` 门的非 GET 那一支）只认它。
+  String? get memoryAdminToken => memorySurfaceAdminToken ?? configuredAdminToken;
+
+  /// 「配置里那个端脑」的 admin token（用户为**远端**配的那把）。
+  final String? configuredAdminToken;
 
   TelencephalonState copyWith({
     TelencephalonConnection? connection,
@@ -32,6 +77,11 @@ class TelencephalonState {
     DateTime? lastCheck,
     String? error,
     bool clearError = false,
+    String? memorySurfaceUrl,
+    String? memorySurfaceKey,
+    String? memorySurfaceAdminToken,
+    String? configuredAdminToken,
+    bool clearMemorySurface = false,
   }) {
     return TelencephalonState(
       connection: connection ?? this.connection,
@@ -41,6 +91,16 @@ class TelencephalonState {
       lobes: lobes ?? this.lobes,
       lastCheck: lastCheck ?? this.lastCheck,
       error: clearError ? null : (error ?? this.error),
+      memorySurfaceUrl: clearMemorySurface
+          ? null
+          : (memorySurfaceUrl ?? this.memorySurfaceUrl),
+      memorySurfaceKey: clearMemorySurface
+          ? null
+          : (memorySurfaceKey ?? this.memorySurfaceKey),
+      memorySurfaceAdminToken: clearMemorySurface
+          ? null
+          : (memorySurfaceAdminToken ?? this.memorySurfaceAdminToken),
+      configuredAdminToken: configuredAdminToken ?? this.configuredAdminToken,
     );
   }
 }
@@ -82,6 +142,12 @@ class TelencephalonNotifier extends StateNotifier<TelencephalonState> {
     // 把存储里的地址、admin token、影子锁**真正应用**给 client
     // （不只是 state）。
     final cfg = AppConfigService();
+    // ⚠️ 「配置里那把」admin token 也要进 state（2026-11-17）——
+    // 记忆面（`/hippocampus/*` 的**写门**）要用它 ⇒ ⇒ state 里原本没有
+    // 这个字段 ⇒ ⇒ 记忆面永远写不进去（只带门闩不够）。
+    state = state.copyWith(
+      configuredAdminToken: cfg.telencephalonAdminToken,
+    );
     final url = cfg.telencephalonBaseUrl;
     if (url != null && url.isNotEmpty) {
       _client.setBaseUrl(url);
@@ -118,7 +184,37 @@ class TelencephalonNotifier extends StateNotifier<TelencephalonState> {
       _client.setAdminToken(adminToken);
     }
     _client.setBaseUrl(url);
+    // ⚠️ **记忆面单独记一个地址**（2026-11-17）——
+    //
+    // ⚠️ **为什么不能让它跟着 state 的地址走**：state 的地址是「用户配的
+    // 那个」⇒ ⇒ 而**移动端没有任何 UI 能改它**（`setConfiguredEndpoint`
+    // 在移动端零调用方）⇒ ⇒ 它的值恒为 `null` ⇒ ⇒ 记忆面恒指
+    // `http://127.0.0.1:60080` ⇒ ⇒ **手机上永远没人监听那个口**
+    // （内嵌端脑用的是**每次启动都变的随机端口**）⇒ ⇒ 记忆页必败。
+    //
+    // ⚠️ **为什么现在能指本机了**：「记忆面必须指远端」这个前提是
+    // 「**内嵌端脑没有海马体**」⇒ ⇒ 而 `mobile-memory` 档（2026-11-17 起
+    // 是默认档）把它变成了**有** ⇒ ⇒ 本机 `/hippocampus/*` 面已挂上 ⇒ ⇒
+    // 记忆面可以（也应该）指**本机内嵌端脑**。
+    //
+    // ⚠️ **配置优先**：用户配了远端 ⇒ ⇒ 仍指远端（那是显式意图）⇒ ⇒
+    // 没配 ⇒ ⇒ 指本机内嵌端脑（它带海马体）。
+    final configured = _configuredUrlOrNull;
+    state = state.copyWith(
+      memorySurfaceUrl: configured == null ? url : null,
+      memorySurfaceKey: configured == null ? shadowKey : null,
+      memorySurfaceAdminToken:
+          configured == null ? adminToken : null,
+    );
   }
+
+  /// 配置里那个端脑地址（**没配过 ⇒ null**）。
+  String? get _configuredUrlOrNull {
+    final u = AppConfigService().telencephalonBaseUrl;
+    return (u == null || u.isEmpty) ? null : u;
+  }
+
+
 
   /// 内嵌大脑放手 ⇒ client 回到「**配置里那个**」。
   ///
@@ -127,6 +223,8 @@ class TelencephalonNotifier extends StateNotifier<TelencephalonState> {
   /// ⇒ 「配了、存了、重启后却不生效」的同一族坑。
   void releaseAgentSurface() {
     _agentSurfaceOwned = false;
+    // ⚠️ 记忆面也放手 ⇒ 回到「配置里那个」（没配过 ⇒ 默认回环口）。
+    state = state.copyWith(clearMemorySurface: true);
     final cfg = AppConfigService();
     _client.setBaseUrl(
       cfg.telencephalonBaseUrl ?? TelencephalonClient.defaultBaseUrl,
@@ -156,6 +254,7 @@ class TelencephalonNotifier extends StateNotifier<TelencephalonState> {
         baseUrl: resolved,
         apiKey: shadowKey,
       ),
+      configuredAdminToken: token,
     );
     if (!_agentSurfaceOwned) {
       _client.setBaseUrl(resolved);

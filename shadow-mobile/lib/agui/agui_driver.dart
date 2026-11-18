@@ -1,5 +1,6 @@
 import 'agui_client.dart';
 import 'agui_events.dart';
+import 'a2ui_activity.dart';
 import 'agui_tool_outcome_gate.dart';
 import 'agui_types.dart';
 
@@ -47,6 +48,12 @@ class AguiDriverEvent {
   final String? outcome;
   final String? endState;
 
+  /// **AG-UI 承载的那块 A2UI 面**（官方 `ACTIVITY_SNAPSHOT` 的 content）。
+  ///
+  /// ⚠️ 是**官方 ops 数组**（A2UI v1.0 消息）⇒ ⇒ 零翻译 ⇒ ⇒ 直接喂官方
+  /// `MessageProcessor`。
+  final List<Map<String, Object?>>? a2uiOps;
+
   const AguiDriverEvent({
     required this.kind,
     this.messageId,
@@ -60,6 +67,7 @@ class AguiDriverEvent {
     this.runId,
     this.outcome,
     this.endState,
+    this.a2uiOps,
   });
 }
 
@@ -171,6 +179,17 @@ class AguiDriver {
               content: outcome.content,
               error: outcome.error,
             ));
+            break;
+          case 'ACTIVITY_SNAPSHOT':
+            // ⚠️ **只有 `a2ui-surface` 那一种 activity 归我们管**；
+            // 别的 activity ⇒ ⇒ 不画（也不报错）。
+            final List<Map<String, Object?>>? ops = a2uiOpsFromEvent(ev);
+            if (ops == null) break;
+            yield AguiDriverEvent(
+              kind: 'a2ui_surface',
+              messageId: ev.messageId,
+              a2uiOps: ops,
+            );
             break;
           case 'CUSTOM':
             final Object? raw = ev.value;

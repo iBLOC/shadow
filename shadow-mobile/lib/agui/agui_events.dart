@@ -35,6 +35,7 @@ const List<String> aguiKnownEventTypes = <String>[
   'TOOL_CALL_END',
   'RUN_FINISHED',
   'RUN_ERROR',
+  'ACTIVITY_SNAPSHOT',
   'CUSTOM',
 ];
 
@@ -97,6 +98,18 @@ class AguiEvent {
   String? get protocolVersion => _s('protocolVersion');
   String? get name => _s('name');
   String? get message => _s('message');
+
+  /// activity 的类型名（官方：`a2ui-surface` 那种）。
+  String? get activityType => _s('activityType');
+
+  /// activity 的载荷（官方：content 里放**操作数组**）。
+  Object? get content => data['content'];
+
+  /// 官方语义：这一条是**替换**同名 activity（不是追加）。
+  bool? get replace {
+    final Object? v = data['replace'];
+    return v is bool ? v : null;
+  }
 
   Object? get value => data['value'];
 

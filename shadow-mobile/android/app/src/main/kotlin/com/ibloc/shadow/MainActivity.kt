@@ -23,6 +23,7 @@ import com.ibloc.shadow.tts.TtsManager
 import com.ibloc.shadow.provision.BleProvisioningService
 import com.ibloc.shadow.audio.UsbAudioRouter
 import com.ibloc.shadow.device.DeviceDataBridge
+import com.ibloc.shadow.media.MediaActionsBridge
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +52,13 @@ class MainActivity : FlutterActivity() {
     private val USB_AUDIO_CHANNEL = "com.ibloc.shadow/usb_audio"
     private val ENCEPHALON_CHANNEL = "com.ibloc.shadow/encephalon_runtime"
     private val DEVICE_DATA_CHANNEL = "com.ibloc.shadow/device_data"
+
+    /// 「聊天里的图片」那两个动作（2026-11-17）—— **保存到相册** ＋ **分享到微信**。
+    ///
+    /// ⚠️ 这两件事是**操作系统**的动作（MediaStore / Intent）⇒ ⇒ 大脑那侧
+    /// 碰不到 ⇒ ⇒ 只能落在宿主这一侧（**不是**「两端各写一份」—— 只有
+    /// Android 有「系统相册」与「微信 Intent」这两样东西）。
+    private val MEDIA_ACTIONS_CHANNEL = "com.ibloc.shadow/media_actions"
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
     private var nsdManager: NsdManager? = null
@@ -88,8 +96,21 @@ class MainActivity : FlutterActivity() {
         setupPcmAudioChannel(flutterEngine)
         setupEncephalonRuntimeChannel(flutterEngine)
         setupDeviceDataChannel(flutterEngine)
+        setupMediaActionsChannel(flutterEngine)
         setupBleProvisionChannel(flutterEngine)
         setupUsbAudioChannel(flutterEngine)
+    }
+
+    /// 「保存到相册」＋「分享到微信」的通道（2026-11-17）。
+    ///
+    /// ⚠️ **桥自己那一侧查权限、查微信在不在** —— Dart 说「有」不算数
+    /// ⇒ ⇒ 原生这里才是真的那道门（与 `DeviceDataBridge` 同一纪律）。
+    private fun setupMediaActionsChannel(flutterEngine: FlutterEngine) {
+        val bridge = MediaActionsBridge(applicationContext)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIA_ACTIONS_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                bridge.handle(call, result)
+            }
     }
     
     private fun setupAccessibilityChannel(flutterEngine: FlutterEngine) {
@@ -429,6 +450,19 @@ class MainActivity : FlutterActivity() {
                 }
                 "isInitialized" -> {
                     result.success(ttsManager?.isInitialized() ?: false)
+                }
+                "deviceSilentState" -> {
+                    // ⚠️ **三档，每档各自三态**（volume / ringer / dnd）——
+                    // 「查不到」不是「有声音」⇒ ⇒ Dart 侧按「没静音」处理
+                    // （宁可多合成一次，也绝不静默吞掉声音）。
+                    result.success(
+                        ttsManager?.deviceSilentState()
+                            ?: mapOf(
+                                "volume" to "unknown",
+                                "ringer" to "unknown",
+                                "dnd" to "unknown",
+                            )
+                    )
                 }
                 else -> result.notImplemented()
             }

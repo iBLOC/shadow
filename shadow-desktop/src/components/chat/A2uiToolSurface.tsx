@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 
-import { buildSurfaceFromEvents } from '../../lib/a2uiProtocol';
+import { buildSurfaceFromEvents, surfaceFromMessages } from '../../lib/a2uiProtocol';
+import type { A2uiMessage } from '../../lib/a2uiProtocol';
 import { A2uiSurface } from './A2uiSurface';
 
 /**
@@ -42,11 +43,10 @@ export function a2uiEvents(result: unknown): readonly unknown[] | null {
 /**
  * **消息里内联的 A2UI 界面**。
  *
- * ⚠️ 与顶部那块 `A2uiPanel` 是**两件事**：
- *
- * - 面板 = 「用户主动打开的看板」（上面那块，随时能开）；
- * - 这里 = 「**模型在这一轮里点名要画的界面**」⇒ ⇒ 位置在**消息流里**
- *   ⇒ ⇒ 用户往回翻还能看见它 ⇒ ⇒ 而不是切走就没了。
+ * 这里画的是「**模型在这一轮里点名要画的界面**」⇒ ⇒ 位置在**消息流里**
+ * ⇒ ⇒ 用户往回翻还能看见它 ⇒ ⇒ 而不是切走就没了。
+ * （⚠️ 2026-11-18：顶部那块独立面板已摘除 —— 桌面端 A2UI 只剩
+ * AG-UI 内联这一条承载；本组件画的是「客户端工具结果」那一档。）
  */
 export function A2uiToolSurface({ events }: { events: readonly unknown[] }) {
   const surface = useMemo(() => buildSurfaceFromEvents(events), [events]);
@@ -58,6 +58,29 @@ export function A2uiToolSurface({ events }: { events: readonly unknown[] }) {
     <div
       className="rounded-lg border border-border bg-card/40 p-3"
       data-testid="a2ui-inline-surface"
+    >
+      <A2uiSurface surface={surface} />
+    </div>
+  );
+}
+
+/**
+ * **AG-UI 承载的那块面**（官方 `ACTIVITY_SNAPSHOT` 的 content）。
+ *
+ * ⚠️ 载荷已经是**官方 ops 数组**（A2UI v1.0 消息）⇒ ⇒ **零翻译**
+ * ⇒ ⇒ 端脑不合规就是官方 SDK 拒 ⇒ ⇒ 这里**如实不画**（不画一个假的空面板）。
+ */
+export function A2uiOpsSurface({ messages }: { messages: readonly unknown[] }) {
+  const surface = useMemo(
+    () => surfaceFromMessages(messages as A2uiMessage[]),
+    [messages],
+  );
+  if (!surface) return null;
+
+  return (
+    <div
+      className="rounded-lg border border-border bg-card/40 p-3"
+      data-testid="a2ui-agui-surface"
     >
       <A2uiSurface surface={surface} />
     </div>

@@ -91,18 +91,6 @@ const conversationModes = <ConversationMode>[
     route: '/voice',
     icon: Icons.mic_none,
   ),
-  ConversationMode(
-    id: 'livestream',
-    labelKey: 'surface.livestream',
-    route: '/livestream',
-    icon: Icons.live_tv,
-  ),
-  ConversationMode(
-    id: 'customer-service',
-    labelKey: 'surface.customerService',
-    route: '/customer-service',
-    icon: Icons.headset_mic,
-  ),
 ];
 
 /// 规范 labelKey → 移动端平铺 ARB 的 getter。

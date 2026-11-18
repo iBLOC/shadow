@@ -216,8 +216,12 @@ final GoRouter appRouter = GoRouter(
     // ⚠️ provider 改动必须发生在 build 期之外（pageBuilder 在 build 里
     // 跑，见 build_phase_guard.dart 顶上的注释；2026-11-01 真机实证过）。
     //
-    // VoiceConversationScreen 本身**留档不删**（同 Group 入口下线的
-    // 先例：revert 本次提交即可恢复），设备 USB 音频路由的诉求另行处理。
+    // ⚠️ 2026-11-16：独立语音页（VoiceConversationScreen）**已删**
+    // （用户诉求逐字：「移动端语音对话页面已经没什么意义先删除吧」）
+    // ⇒ ⇒ 删掉的是那份**不记记忆**的死文件（它的推理不进端脑会话，
+    // ⇒ ⇒ 说过的话在会话列表里找不到）⇒ ⇒ /voice 这条路现在只表示
+    // ⇒ ⇒ 「进对话页的语音输入态」—— 语音**能力**没删，删的是那个
+    // ⇒ ⇒ 另起一间的旧页面。
     GoRoute(
       path: AppRoutes.voice,
       name: 'voice',
@@ -231,6 +235,10 @@ final GoRouter appRouter = GoRouter(
         return _fadePage(state, _wrapInShell(state, const ChatScreen()));
       },
     ),
+    // ⚠️ 2026-11-16：**入口已隐藏**（用户诉求逐字：「直播和智能客服页面先隐藏」）
+    // ⇒ ⇒ 形态切换器里不再有这一格（真源＝ agent-surface.json 的
+    // ⇒ ⇒ navigation.mobile.conversationModes）⇒ ⇒ 页面与路由**留档**
+    // ⇒ ⇒ 恢复＝把 id livestream 加回那份清单 ＋ 重跑 gen_nav.mjs。
     // Live-stream / read-aloud mode (voice-only, no digital avatar)
     GoRoute(
       path: AppRoutes.liveStream,
@@ -238,6 +246,8 @@ final GoRouter appRouter = GoRouter(
       pageBuilder: (context, state) =>
           _fadePage(state, _wrapInShell(state, const LivestreamScreen())),
     ),
+    // ⚠️ 2026-11-16：**入口已隐藏**（同上一条，用户诉求逐字：「直播和智能客服页面先隐藏」）
+    // ⇒ ⇒ 页面与路由留档 ⇒ ⇒ 恢复＝把 id customer-service 加回清单 ＋ 重跑生成器。
     // Smart customer service mode (AI auto-answer calls via shadow-esp32)
     GoRoute(
       path: AppRoutes.customerService,

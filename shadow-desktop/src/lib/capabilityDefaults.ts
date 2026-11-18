@@ -184,6 +184,21 @@ export interface EngineResolvedInfo {
    * ⚠️ **空列表 = 这台大脑此刻没有已注册的引擎**（不是「没有这个能力」）。
    */
   registered: Record<string, string[]>;
+
+  /**
+   * **端脑此刻服务的那几档**（能力词）—— 端脑说了算（`served`）。
+   *
+   * ⚠️ 「词表里有」与「端脑服务」是**两句话**：端脑明说**不服务**的档
+   * （比如 `vad`）客户端要能说清「这一档现在调不了」⇒ ⇒ 否则给用户一个
+   * 必然失败的选项（**存得进去、用不了**）。
+   *
+   * ⚠️⚠️ **`video_gen` 现在是端脑服务的那一档**（2026-11-17，端脑自己有
+   * 视频门面）⇒ ⇒ 新端脑的 `served` 里有它 ⇒ ⇒ 客户端据此放行。
+   *
+   * ⚠️ **空/缺失 ＝ 老端脑没这个字段** ⇒ ⇒ 退回产品事实
+   * （[TELEENCEPHALON_UNSERVED_TIERS]），**不许**当成「全都服务」。
+   */
+  served?: string[];
 }
 
 /** 下拉框里的一条可选项。 */
@@ -200,6 +215,10 @@ export interface CapabilityCandidateOption {
    * ⚠️ 对**按引擎 id 解析**的档 ⇒ ⇒ 恒为 `true`（能列出来的都已注册）
    * ⇒ ⇒ 对**不按引擎 id 解析**的档 ⇒ ⇒ 恒为 `true`（那一档的可用性不由
    * 注册表决定 ⇒ ⇒ 不许在这里说「不可用」—— 那是另一套说法）。
+   *
+   * ⚠️ **除非端脑不服务这一档**（2026-11-16）—— 「词表里有」与「端脑
+   * 服务」是两句话 ⇒ ⇒ 端脑明说不服务的档 ⇒ ⇒ 那一档的候选一律
+   * `false`（不许给用户一个必然失败的选项）。
    */
   usableNow: boolean;
 }
@@ -224,6 +243,39 @@ export interface CapabilityCandidateOption {
  * ⚠️ 与移动端 `brain_model_source_provider.dart` 的 `catalogResolvedTiers`
  * **必须一模一样**（两端纯模块同源，改一边就改另一边）。
  */
+/**
+ * **端脑整条链没有服务路径的那几档**（产品事实，不随端脑版本变）。
+ *
+ * ⚠️ `video_gen`：**老**端脑没有视频门面（官方那套是**两步**：创建 ⇒
+ * 查询，不是一次 POST）⇒ ⇒ 老端脑那一档的候选一律标「此刻用不了」。
+ *
+ * ⚠️⚠️ **新端脑（2026-11-17 起）自己有门面**（端脑代理官方那两步）⇒ ⇒
+ * 它的 `served` 里**有** `video_gen` ⇒ ⇒ **以端脑为准** ⇒ ⇒ 这一档
+ * 自动放行。
+ *
+ * ⚠️ **只当兜底** —— 端脑若下发了 `served`（哪几档它真服务），以端脑
+ * 为准（那是单一真源）⇒ ⇒ 端脑加门面，这一档自动放行（**不需要改这里**）。
+ *
+ * ⚠️ 与移动端 `brain_model_source_provider.dart` 的
+ * `telencephalonUnservedTiers` **必须一模一样**（两端纯模块同源）。
+ */
+export const TELEENCEPHALON_UNSERVED_TIERS: ReadonlySet<string> = new Set([
+  'video_gen',
+]);
+
+/**
+ * 端脑此刻服务这一档吗。
+ *
+ * ⚠️ 判据的顺序：**端脑说的为准**（`served`）→ ⇒ 没有才退回产品事实
+ * （[TELEENCEPHALON_UNSERVED_TIERS]）⇒ ⇒ 老端脑不会让 `video_gen`
+ * 变成「可用」，新端脑会（它有门面了）⇒ ⇒ **两端不用各改一次**。
+ */
+export function isServedCapability(cap: string, info?: EngineResolvedInfo): boolean {
+  const served = info?.served;
+  if (Array.isArray(served) && served.length > 0) return served.includes(cap);
+  return !TELEENCEPHALON_UNSERVED_TIERS.has(cap);
+}
+
 export const CATALOG_RESOLVED_TIERS: ReadonlySet<string> = new Set([
   'image_gen',
   'asr',
@@ -270,11 +322,15 @@ export function capabilityOptionsByCapability(
   const out: Record<string, CapabilityCandidateOption[]> = {};
 
   for (const [cap, list] of Object.entries(catalog ?? {})) {
+    // ⚠️ **端脑不服务这一档 ⇒ 一律标「此刻用不了」**（2026-11-16）——
+    // 「词表里有」≠「端脑能调」⇒ ⇒ 否则给用户一个必然失败的选项
+    // （**存得进去、用不了**）。
+    const served = isServedCapability(cap, info);
     if (!engineResolved.has(cap)) {
       out[cap] = (list ?? []).map((c) => ({
         id: c.id,
         label: c.label,
-        usableNow: true,
+        usableNow: served,
       }));
       continue;
     }
@@ -283,7 +339,7 @@ export function capabilityOptionsByCapability(
     const options = ids.map((id) => ({
       id,
       label: labels.get(id) ?? id,
-      usableNow: true,
+      usableNow: served,
     }));
     if (CATALOG_RESOLVED_TIERS.has(cap)) {
       const seen = new Set(options.map((o) => o.id));
@@ -292,7 +348,7 @@ export function capabilityOptionsByCapability(
         // ⚠️ asr/tts 只并**云供应商**条目 —— 内置目录的本地 id 端脑解析
         // 不到（[CLOUD_ONLY_UNION_TIERS]）。image_gen 整档并（原状）。
         if (CLOUD_ONLY_UNION_TIERS.has(cap) && !c.cloud) continue;
-        options.push({ id: c.id, label: c.label, usableNow: true });
+        options.push({ id: c.id, label: c.label, usableNow: served });
       }
     }
     out[cap] = options;
@@ -304,7 +360,7 @@ export function capabilityOptionsByCapability(
     if (out[cap]) continue;
     const ids = registered[cap] ?? [];
     if (ids.length === 0) continue;
-    out[cap] = ids.map((id) => ({ id, label: id, usableNow: true }));
+    out[cap] = ids.map((id) => ({ id, label: id, usableNow: isServedCapability(cap, info) }));
   }
 
   return out;
@@ -316,7 +372,9 @@ export function capabilityOptionsByCapability(
  * ⚠️ 只对**按引擎 id 解析**的档说「用不了」—— 那一档的 id 必须已注册，
  * 否则端脑一调用就报「按那个 id 找不到」⇒ ⇒ **存得进去、用不了**。
  * ⚠️ **不按引擎 id 解析的档不在这里说**（那是供应商路由的事 ⇒ ⇒ 客户端
- * 没有依据判断 ⇒ ⇒ 不许编）。
+ * 没有依据判断 ⇒ ⇒ 不许编）—— **除非端脑明说它不服务那一档**
+ * （`served`，2026-11-16 加的 `video_gen` 就是这一格：词表里有、端脑
+ * 整条链没有服务路径 ⇒ ⇒ 这一格**有依据**）。
  * ⚠️ **别把「能用」报成「用不了」**：[CATALOG_RESOLVED_TIERS] 那几档的
  * 目录面 id 端脑也解析得到（走云端代理）⇒ 传了 [catalog] 就一并放行。
  */
@@ -329,9 +387,15 @@ export function unusableCapabilityDefaults(
   const registered = info?.registered ?? {};
   const out: { capability: string; modelId: string }[] = [];
   for (const [cap, modelId] of Object.entries(defaults ?? {})) {
-    if (!engineResolved.has(cap)) continue;
     const id = (modelId ?? '').trim();
     if (!id) continue;
+    // ⚠️ **端脑不服务这一档** ⇒ ⇒ 配了也跑不起来（不论它是不是按引擎 id
+    // 解析的档）⇒ ⇒ 要报出来（这一格**有依据**：端脑自己说的）。
+    if (!isServedCapability(cap, info)) {
+      out.push({ capability: cap, modelId: id });
+      continue;
+    }
+    if (!engineResolved.has(cap)) continue;
     const ids = registered[cap] ?? [];
     if (ids.includes(id)) continue;
     if (

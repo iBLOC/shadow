@@ -3,15 +3,16 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shadow_mobile/services/genui/gen_ui_agent_service.dart';
-import 'package:shadow_mobile/services/genui/shadow_catalog.dart';
+import 'package:shadow_mobile/services/a2ui/a2ui_agent_service.dart';
+
+import '../support/a2ui_fixture.dart';
 
 /// 「这一轮的响应**被消费完了**」这个信号 —— **不许**拿「surface 列表变了」来代理。
 ///
 /// ## 这条测试钉的是哪条坑
 ///
-/// `GenUIAgentService.sendMessage` 现在会在**发请求之前**把上一轮的 surface 清掉
-/// （`gen_ui_agent_service.dart`：`_surfaceIds.clear()` + 广播一个**空列表**）
+/// `A2uiAgentService.sendMessage` 现在会在**发请求之前**把上一轮的 surface 清掉
+/// （`a2ui_agent_service.dart`：`_surfaceIds.clear()` ＋ 广播一个**空列表**）
 /// ⇒ ⇒ `surfaceIdsStream` 多了一种事件：**空列表**。
 ///
 /// 而三条同族测试里，有两条拿「**列表变了**」当「响应已被消费完」的信号
@@ -26,26 +27,36 @@ import 'package:shadow_mobile/services/genui/shadow_catalog.dart';
 /// ⇒ **还在飞的响应流当场报错**
 /// ⇒ 变成测试区里的**未处理异常** ⇒ 测试偶发红。
 ///
-/// （这条坑本来就在 ㊻ 条里记过一次：「在客户端读完 SSE 之前就 dispose()
-/// ⇒ 多文件并行时偶发失败」—— 当时是**靠等 surface 出现**绕过去的；
-/// 而「清空上一轮」这个新事件，把那条绕法又拆了。）
-///
 /// ## 为什么这条测试要**把 SSE 分两半发**
 ///
 /// 因为「响应还没读完」这件事在别处是**竞态**（时好时坏 ⇒ 偶发红 ⇒ 查不出根因）。
 /// 这里让服务端**发一半、停 400ms、再发另一半**
 /// ⇒ 「提前 dispose ⇒ 在飞的流报错」变成**确定**的 ⇒ 断言钉得住。
+///
+/// ## ⚠️ 为什么两轮用**不同的 surface id**
+///
+/// 端脑按视图给**稳定**的 surface id ⇒ 第二轮会再来一条**同名**的
+/// `createSurface` ⇒ 官方 SDK **拒收**重复创建 ⇒ 那一轮**拿不到面**
+/// ⇒ ⇒ 「空列表」就**又有了第二种含义** ⇒ ⇒ 这条判据就废了。
+///
+/// ⇒ 这里让服务端两轮回**不同的** surface id ⇒ ⇒ 「空列表」重新**只有**
+///    一种含义（「这一轮开始了」）⇒ ⇒ 这条判据钉的仍然是原来那个东西。
+/// （同名的那个坑，另有一条判据钉住 —— 见下面第三条。）
 void main() {
   test('「空列表」是「这一轮开始了」，不是「响应消费完了」', () async {
     // ⚠️ 测试框架默认把**所有** HTTP 请求打成 400 ⇒ 必须放开。
     HttpOverrides.global = null;
 
-    final sse = _readSseFixture();
-
+    var call = 0;
     // 服务端：**按请求**记下「整个 SSE 的最后一块写出去」的时刻。
     final bodySentAts = <DateTime>[];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
+      call++;
+      // ⚠️ 两轮**不同的** surface id ⇒ 「空列表」只有一种含义。
+      final sse = conformantTasksSse(
+        surfaceId: call == 1 ? 'shadow.tasks' : 'shadow.tasks2',
+      );
       request.response.headers.contentType = ContentType(
         'text',
         'event-stream',
@@ -63,9 +74,9 @@ void main() {
       await request.response.close();
     });
 
-    final service = GenUIAgentService(
+    final service = A2uiAgentService(
       serverUrl: 'http://${server.address.address}:${server.port}/a2a',
-      catalog: ShadowCatalog.create(),
+      shadowKeyProvider: () => null,
     );
 
     // 记下**每一次**列表更新（空与非空都记）—— 用来断言它们的**语义**不同。
@@ -114,7 +125,7 @@ void main() {
     );
 
     await subscription.cancel();
-    service.dispose();
+    await service.dispose();
     await server.close(force: true);
   });
 
@@ -129,9 +140,9 @@ void main() {
       await Future<void>.delayed(const Duration(seconds: 10));
     });
 
-    final service = GenUIAgentService(
+    final service = A2uiAgentService(
       serverUrl: 'http://${server.address.address}:${server.port}/a2a',
-      catalog: ShadowCatalog.create(),
+      shadowKeyProvider: () => null,
     );
 
     service.sendMessage('在飞的请求');
@@ -140,7 +151,7 @@ void main() {
 
     // ⚠️ dispose 会关掉 transport 的 `http.Client`
     // ⇒ **在飞的请求当场断** ⇒ 它的失败**在 dispose 之后**才回来。
-    service.dispose();
+    await service.dispose();
 
     // 等那次迟到的失败落地。
     await Future<void>.delayed(const Duration(milliseconds: 800));
@@ -155,6 +166,63 @@ void main() {
 
     await server.close(force: true);
   });
+
+  test('同名 surface 的第二轮 ⇒ 客户端先删旧面 ⇒ ⇒ 那一轮**照样拿得到**',
+      () async {
+    // ⚠️ 端脑按视图给**稳定**的 surface id（`shadow.tasks`）⇒ 第二轮会
+    //    再来一条**同名**的 `createSurface` ⇒ ⇒ 官方 SDK **不许**同一个面
+    //    被重复创建（`A2uiIntegrityError`：面已存在）⇒ ⇒ **客户端必须
+    //    在每轮开始时把上一轮的面从模型里删掉**（`_resetRound` ⇒
+    //    `model.deleteSurface(id)`）⇒ ⇒ 否则第二轮**没有界面**。
+    //
+    // ⇒ 这条钉的是**「同名两轮都要拿到面」** ⇒ ⇒ 失败不许长得像成功。
+    HttpOverrides.global = null;
+
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen((request) async {
+      request.response.headers.contentType = ContentType(
+        'text',
+        'event-stream',
+        charset: 'utf-8',
+      );
+      request.response.add(utf8.encode(conformantTasksSse()));
+      await request.response.close();
+    });
+
+    final service = A2uiAgentService(
+      serverUrl: 'http://${server.address.address}:${server.port}/a2a',
+      shadowKeyProvider: () => null,
+    );
+
+    final updates = <List<String>>[];
+    final subscription = service.surfaceIdsStream.listen(updates.add);
+
+    // 第一轮：面建起来了。
+    service.sendMessage('我的任务');
+    await _waitUntil(() => service.surfaceIds.isNotEmpty);
+    expect(service.surfaceIds, <String>['shadow.tasks']);
+
+    // 第二轮：**同名** ⇒ 官方 SDK 拒收 ⇒ 客户端这一轮**拿不到面**。
+    service.sendMessage('我的任务');
+    await _waitUntil(
+      () => service.connectionStatus == ConnectionStatus.connected,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+
+    expect(
+      service.surfaceIds,
+      <String>['shadow.tasks'],
+      reason: '客户端在每轮开始时把上一轮的面从模型里删掉 ⇒ ⇒ '
+          '这一轮的 createSurface 不会再被当成重复创建而拒收 ⇒ '
+          '两轮都要拿得到面（否则那一轮界面上是「没有界面」）',
+    );
+    // 面也在（这一轮真的建出来了）。
+    expect(service.surfaceById('shadow.tasks'), isNotNull);
+
+    await subscription.cancel();
+    await service.dispose();
+    await server.close(force: true);
+  });
 }
 
 /// 等到 [predicate] 成立（上限 10 秒）。
@@ -164,24 +232,4 @@ Future<void> _waitUntil(bool Function() predicate) async {
     await Future<void>.delayed(const Duration(milliseconds: 50));
   }
   throw StateError('等待超时（10 秒）');
-}
-
-/// 读端脑导出的 SSE fixture。
-String _readSseFixture() {
-  const relative = 'fixtures/a2ui/tasks_sse.txt';
-  final candidates = <File>[
-    File('../$relative'),
-    File('../../$relative'),
-    File(relative),
-  ];
-  for (final candidate in candidates) {
-    if (candidate.existsSync()) {
-      return candidate.readAsStringSync();
-    }
-  }
-  throw StateError(
-    '找不到 SSE fixture。试过：'
-    '${candidates.map((f) => f.path).join(' | ')}'
-    '（当前工作目录 ${Directory.current.path}）',
-  );
 }

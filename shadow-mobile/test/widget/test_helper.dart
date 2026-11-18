@@ -8,7 +8,6 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/providers/chat_provider.dart';
 import 'package:shadow_mobile/providers/conversation_mode_provider.dart';
-import 'package:shadow_mobile/providers/genui_provider.dart';
 import 'package:shadow_mobile/providers/service_provider.dart';
 import 'package:shadow_mobile/providers/theme_provider.dart';
 import 'package:shadow_mobile/services/app_config_service.dart';
@@ -85,7 +84,6 @@ List<Override> getTestOverrides() {
     conversationModeProvider.overrideWith(
       (ref) => MockConversationModeNotifier(),
     ),
-    useAgent2UIModeProvider.overrideWith((ref) => false),
   ];
 }
 

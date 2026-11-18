@@ -513,6 +513,7 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/api/telencephalon/neuron/admin/model` | POST | neuron_public | — | 换模型 |
 | `/api/telencephalon/neuron/admin/model/{capability}/{name}` | DELETE | neuron_public | — | 删模型 |
 | `/api/telencephalon/visual-qa/sources-broadcast` | POST | visual_qa_sources_broadcast | — | 广播视觉源 |
+| `/api/telencephalon/visual-qa/snapshot` | POST,GET | visual_snapshot | — | **推/读视觉快照帧**（latest-wins；推帧 = 往大脑内存里塞图片 ⇒ 门型 admin；2026-11-18 补录：`src/api/visual_snapshot.rs`） |
 | `/api/telencephalon/tasks` | POST | tasks_admin | ✅ | 建任务 |
 | `/api/telencephalon/tasks/{id}` | DELETE | tasks_admin | ✅ | 删任务 |
 | `/api/telencephalon/tasks/{id}/confirm` | POST | tasks_admin | ✅ | 确认任务 ⇒ 触发执行 |
@@ -538,12 +539,15 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/api/telencephalon/config/{section}/{key}` | PUT,DELETE | config_api | — | **改/删这台大脑的配置**（端脑 / 丘脑 / neuron / 云端供应商 / MCP 的运行数据与配置都在 Turso 里 ⇒ 不在海马体里）⇒ ⚠️ 回包里的秘密项是**掩码**；⚠️ 仅带 Turso 的构建有这张面 |
 | `/api/telencephalon/voice/synthesize` | POST | voice | — | 烧 TTS |
 | `/api/telencephalon/voice/transcribe` | POST | voice | — | 烧 STT |
+| `/api/telencephalon/videos/generations` | POST | videos | — | **创建**一个视频生成任务（官方那套是**两步**：创建 ⇒ 查询 ⇒ ⇒ 烧云额度）⇒ ⇒ 门型 admin（`door_policy.txt`）⇒ ⇒ 端脑**只有云腿**（neuron 整条链没有视频端点 ⇒ ⇒ 没有供应商拥有这个模型 ⇒ ⇒ 响亮报错） |
+| `/api/telencephalon/videos/generations/{task_id}` | GET | videos | — | **查回**一个视频生成任务（产物链接在 `content.url` ⇒ ⇒ **有时效** ⇒ ⇒ 要及时下载或转存）⇒ ⇒ 门型 admin |
 | `/api/telencephalon/lobes/capability-defaults` | PUT | lobe_manifest | ✅ | **改这台大脑「哪一类能力用哪个模型」**（写门：admin token）⇒ ⇒ 没有钥匙的人改不了你的模型选择 |
 | `/api/telencephalon/agents/scan` | POST | agent_management | ✅ | 扫网段 ⇒ 探测内网 |
 | `/api/telencephalon/agents/sync/{provider_id}` | POST | agent_management | ✅ | 从 provider 同步 agent |
 | `/shadow/v1/identity` | POST | shadow | ✅ | **换掉「这台机器是谁」**（**已锁**） |
 | `/shadow/v1/conversations/{id}/tool-results` | POST | shadow | ✅ | **伪造工具回执** ⇒ 模型以为工具跑过了（**已锁**） |
 | `/shadow/v1/conversations/{id}/messages` \| `:stream` | POST | shadow | ✅ | 往会话里塞消息 ⇒ prompt injection（**已锁**） |
+| `/shadow/v1/conversations/{id}/ag-ui:stream` | POST | shadow | ✅ | **AG-UI 事件流**（官方 AG-UI 协议 ⇒ ⇒ **面向用户**）⇒ ⇒ 2026-11-17 起**也承载 A2UI 面**（官方 `ACTIVITY_SNAPSHOT` ＋ `a2ui-surface` activity ⇒ ⇒ **面走 AG-UI**；`/a2a` 那条**一行没删** ⇒ ⇒ 留给 agent↔agent ＋ 旧客户端）⇒ ⇒ **已锁**（与 `/shadow/v1/*` 同一道门 ⇒ `api::shadow_auth::require_shadow_key`） |
 | `/shadow/v1/conversations/{id}/import` | POST | shadow | ✅ | 塞历史 ⇒ 改写上下文（**已锁**） |
 | `/shadow/v1/conversations` | POST | shadow | ✅ | 建会话（**已锁**） |
 
@@ -576,7 +580,7 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/api/flows` \| `/{id}` \| `/executions` \| `/traces` \| `/draft` | GET | flow | ✅ | 工作流定义与执行历史 |
 | `/shadow/v1/agents` \| `/{name}` | GET | shadow | ✅ | 叶区元数据（**已锁**） |
 | `/shadow/v1/conversations` \| `/{id}` | GET | shadow | ✅ | **会话历史**（隐私；**已锁**） |
-| `/a2a` | POST | a2ui_gateway | — | **A2UI 产出面**（把**任务标题**、**agent 名字**渲染成界面吐出来 ⇒ 是一张**数据面**，不是静态面）；⚠️ **已锁**（2026-10-31 新增，与 `/shadow/v1/*` **同一道门** ⇒ `api::shadow_auth::require_shadow_key`）；⚠️ 它同时是 **A2A v0.3 的 JSON-RPC 入口** ⇒ 跨机对端最终要**每台一份凭据**（见 D 类） |
+| `/a2a` | POST | a2ui_gateway | — | **A2UI 产出面**（把**任务标题**、**agent 名字**渲染成界面吐出来 ⇒ 是一张**数据面**，不是静态面）；⚠️ **已锁**（2026-10-31 新增，与 `/shadow/v1/*` **同一道门** ⇒ `api::shadow_auth::require_shadow_key`）；⚠️ 它同时是 **A2A v0.3 的 JSON-RPC 入口** ⇒ 跨机对端最终要**每台一份凭据**（见 D 类）；⚠️ 2026-11-17 起 **A2UI 有两条承载**：**面向用户的走 AG-UI**（`POST /shadow/v1/conversations/{id}/ag-ui:stream` ⇒ 官方 `ACTIVITY_SNAPSHOT`）⇒ ⇒ **本条（A2A）保留**给 agent↔agent ＋ 旧客户端（v0.8 那条路**不断**） |
 
 ### C 类 —— 该开着（锁了会自锁 / 本机自用）
 

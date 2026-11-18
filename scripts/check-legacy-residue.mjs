@@ -53,7 +53,11 @@ const ROOT_OPTS = {
              // ⚠️ 2026-11-11：`.githooks`（提交前钩子，sh 脚本）原先**没人交代** ⇒ ⇒ 闸报
              //    「顶层目录没有交代 ⇒ ⇒ 这一格没人判」⇒ ⇒ 与 `.github` 同族 ⇒ ⇒ **纳入扫描**
              //    （不是登记成不扫）⇒ ⇒ 钩子里要是出现旧名，闸会当场报出来。
-             '.github', '.githooks', 'brand', 'fixtures', 'state'],
+             '.github', '.githooks', 'brand', 'fixtures', 'state',
+             // ⚠️ 2026-11-17：`a2ui/`（A2UI 自建目录的**发布契约** catalog.json）——
+             //    与 `fixtures/` 同族（跨端契约文件）⇒ ⇒ 纳入扫描（不是登记成不扫），
+             //    否则闸会报「顶层目录没有交代 ⇒ ⇒ 这一格没人判」。
+             'a2ui'],
   // ⚠️ 2026-11-05：仓根的两个**面向用户**的文档纳入扫描（实测旧词 0 命中 ⇒ ⇒ 纳入是安全的）
   //    ⇒ ⇒ 以后谁往里面写旧名，闸会当场报出来（而不是「没人看」）。
   scanFiles: ['agent-surface.json', 'benchmark/README.md', 'shadow-esp32/README.md',

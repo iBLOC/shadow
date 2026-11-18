@@ -7,6 +7,7 @@ import '../../services/capabilities/capability.dart';
 import '../../services/capabilities/capability_i18n.dart';
 import '../../services/client_tools/client_tool_registry.dart';
 import '../responsive.dart';
+import 'image_action_sheet.dart';
 
 /// 一次**客户端工具调用**的卡片。
 ///
@@ -138,7 +139,10 @@ class ToolCallCard extends ConsumerWidget {
                   padding: const EdgeInsets.only(bottom: 6),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.memory(bytes, fit: BoxFit.fitWidth),
+                    // ⚠️ **长按 ⇒ ⇒ 保存到相册 / 分享到微信**（2026-11-17）
+                    // ⇒ ⇒ 工具产出的图**在聊天里也能带走**（用户往回翻还能
+                    // 找到那张图 ⇒ ⇒ 长按它）。
+                    child: LongPressImage(bytes: bytes),
                   ),
                 ),
             ],

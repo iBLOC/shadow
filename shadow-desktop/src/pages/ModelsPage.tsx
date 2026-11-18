@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Badge, EmptyState, Loading } from '../components/ui';
 import { AddProviderModal } from '../components/business';
 import { CapabilityDefaultsCard } from '../components/business/CapabilityDefaultsCard';
+// ⚠️ 输入模态（2026-11-16）—— 「这条模型吃什么」＋ 来源。
+import { ModelInputModalities } from '../components/business/ModelInputModalities';
 import { LobeModelMatrixCard } from '../components/business/LobeModelMatrixCard';
 import type { ProviderTypeOption } from '../components/business/ProviderForm/types';
 import {
@@ -436,6 +438,11 @@ function ProviderCard({ provider, isExpanded, onToggle, onDelete, onDeleteModel,
                 <div className="flex gap-2">
                   {model.is_default && <Badge variant="success" size="sm">{t('models.default')}</Badge>}
                   {model.supports_vision && <Badge variant="info" size="sm">{t('models.vision')}</Badge>}
+                  {/* ⚠️ 输入模态（2026-11-16）—— 说清「吃什么」＋ 来源。 */}
+                  <ModelInputModalities
+                    modalities={model.input_modalities}
+                    source={model.input_modalities_source}
+                  />
                 </div>
                 <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); onDeleteModel(model.id); }}>
                   <Trash2 size={14} />

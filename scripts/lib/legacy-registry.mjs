@@ -647,6 +647,25 @@ export const REGISTRY = {
     //    本仓不再是「CI 上检不出」的那一格 ⇒ ⇒ 缺口销账。
     ciCheckout: true,
   },
+
+  'mcp-wasm': {
+    // ⚠️ 2026-11-17 实测补上：mcp-wasm 是工作区里的**独立仓**（Rust → WASM）
+    //    ⇒ 自动发现认得出它 ⇒ ⇒ 但它**没有登记** ⇒ ⇒ 跨仓闸报「另有 1 个仓未登记
+    //    ⇒ ⇒ 它们的残留本闸看不见 ⇒ 阻断」⇒ ⇒ **它里面的残留没人看得见**
+    //    ⇒ ⇒ 那是一盏**假绿**（判据对着空气跑）—— 与 hippocampus/web 那次同族。
+    //    ⚠️ 2026-11-17 实测：这个仓里 `cortex` **零命中**（src／tests／README／
+    //    Cargo.toml／build 脚本全扫过）⇒ ⇒ 登记完就是绿的。
+    scanDirs: ['src', 'tests'],
+    scanFiles: ['README.md', 'Cargo.toml', 'build.ps1', 'build.sh'],
+    excludeDirs: [...COMMON_EXCLUDE_DIRS],
+    excludeFiles: [...COMMON_EXCLUDE_FILES],
+    allowed: [],
+    // ⚠️ 2026-11-17 实测：这个仓**没有 origin**（纯本地仓 ⇒ GitHub 上不存在）
+    //    ⇒ ⇒ CI **checkout 不了**它 ⇒ ⇒ 照注册表机械补 checkout ⇒ ⇒ CI 会
+    //    失败在**checkout 步骤**（而不是闸红）⇒ ⇒ 登记成「CI 检不出」。
+    ciCheckout: false,
+    ciReason: '它是**纯本地仓**（没有 origin，GitHub 上不存在这个仓）⇒ ⇒ CI 检不出 ⇒ ⇒ 只能在本地扫。',
+  },
 };
 
 /** 已经在跑自己那道闸的仓（由它们自己的薄壳 + 自己的 CI 负责） */

@@ -43,6 +43,13 @@ enum AttachmentKind {
   /// 音频（wav／mp3）⇒ 大脑那边变成 `input_audio`。
   audio,
 
+  /// **表格**（xlsx / xlsm）⇒ 大脑那边**不解成文字**，而是交给**数据那一条路**
+  /// （顶叶解析表格 ⇒ 取表头 ＋ 前几行 ⇒ 由 agent 建本体 ⇒ 再写数据）。
+  ///
+  /// ⚠️ 为什么**不是** text 档：xlsx 是**二进制**（zip + xml）⇒ ⇒ 当 UTF-8
+  /// 解一遍 ⇒ ⇒ 乱码 ⇒ ⇒ **失败长得像成功**。
+  spreadsheet,
+
   /// **这一档还没接**（视频、Word/Excel、别的音频格式…）。
   ///
   /// ⚠️ 它**不是**「模型吃不吃」的问题 ⇒ ⇒ 是**我们**还不会发 ⇒ ⇒
@@ -87,6 +94,10 @@ class AttachmentEncoder {
     'gif': 'image/gif',
     // 文档
     'pdf': 'application/pdf',
+    // 表格（xlsx 是 zip+xml 的二进制；xlsm 是带宏的同族）
+    'xlsx':
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'xlsm': 'application/vnd.ms-excel.sheet.macroEnabled.12',
     // 纯文本类
     'txt': 'text/plain',
     'md': 'text/markdown',
@@ -132,6 +143,10 @@ class AttachmentEncoder {
     if (mime.startsWith('image/')) return AttachmentKind.image;
     if (mime == 'application/pdf') return AttachmentKind.pdf;
     if (mime.startsWith('audio/')) return AttachmentKind.audio;
+    if (mime.startsWith('application/vnd.openxmlformats-officedocument.') ||
+        mime.startsWith('application/vnd.ms-excel')) {
+      return AttachmentKind.spreadsheet;
+    }
     return AttachmentKind.text;
   }
 
@@ -139,7 +154,7 @@ class AttachmentEncoder {
   static AttachmentKind kindForMime(String mime) {
     final lower = mime.trim().toLowerCase();
     for (final entry in _mimeByExtension.entries) {
-      if (entry.value == lower) {
+      if (entry.value.toLowerCase() == lower) {
         return kindForExtension(entry.key);
       }
     }

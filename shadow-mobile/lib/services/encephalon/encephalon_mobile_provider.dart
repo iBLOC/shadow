@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
 import '../app_config_service.dart';
+// ⚠️ 记忆面（`PrefrontalClient`）—— 接管时要把门闩递给它（`/hippocampus/*`
+// 是 `auto` 门 ⇒ 不带钥匙 ⇒ 401 ⇒ ⇒ 记忆页「读不到」）。
+import '../prefrontal_client.dart';
 import '../background/background_run_provider.dart';
 import '../../l10n/current_l10n.dart';
 import '../../providers/brain_model_source_provider.dart';
@@ -773,6 +776,15 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
           shadowKey: shadowKey,
           adminToken: adminToken,
         );
+    // ⚠️ **门闩也要递给记忆面**（2026-11-17）——
+    // `/hippocampus/*` 归 `auto` 门（`telencephalon/src/api/door_policy.txt`）
+    // ⇒ ⇒ 读面要 shadow key ∪ admin token ⇒ ⇒ 而**内嵌端脑这把一定非空**
+    // ⇒ ⇒ 记忆面不带 ⇒ **401** ⇒ ⇒ 本机海马体建好了也读不到
+    // （失败长得像成功：海马体在、路由在、就是打不开）。
+    // ⇒ ⇒ 这里递的是**内嵌端脑那把**（地址也指着它 ⇒ 同一台 ⇒ 对得上）。
+    sharedPrefrontalClient.setShadowKey(shadowKey);
+    // ⚠️ admin token 一并递（写门只认它 ⇒ ⇒ 写操作要它）。
+    sharedPrefrontalClient.setAdminToken(adminToken);
     // ⚠️⚠️ **client 的上游换人了 ⇒ 目录缓存必须作废** ——
     // `brainProviderOptionsProvider` 是直读 client 的 FutureProvider，
     // 而接管是**原位改 baseUrl**（同一个 client 对象）⇒ Riverpod 不认为

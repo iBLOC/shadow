@@ -27,21 +27,40 @@ class TtsErrorBanner extends StatefulWidget {
 class _TtsErrorBannerState extends State<TtsErrorBanner> {
   StreamSubscription<String>? _sub;
   StreamSubscription<String>? _asrSub;
+  StreamSubscription<String>? _skipSub;
   String? _reason;
 
   /// 这一条是**听不清**（ASR）还是**没播出来**（TTS）⇒ ⇒ 文案不一样。
   bool _isAsr = false;
 
+  /// 这一条是「**因为静音而跳过**」⇒ ⇒ **不是失败**（红色那一套是给
+  /// 失败／ASR 的）⇒ ⇒ 另配色、另文案。
+  bool _isSkip = false;
+
   @override
   void initState() {
     super.initState();
     // ⚠️ 补上**当前**已有的错误（横幅是后挂的 ⇒ 之前的失败它没听见）。
-    _reason = TtsEngine.lastFailure ?? AsrEngine.lastFailure;
-    _isAsr = TtsEngine.lastFailure == null && AsrEngine.lastFailure != null;
+    _reason = TtsEngine.lastFailure ?? TtsEngine.lastSkip ?? AsrEngine.lastFailure;
+    _isAsr = TtsEngine.lastFailure == null &&
+        TtsEngine.lastSkip == null &&
+        AsrEngine.lastFailure != null;
+    _isSkip = TtsEngine.lastFailure == null && TtsEngine.lastSkip != null;
     _sub = TtsEngine.failures.listen((reason) {
       if (!mounted) return;
       setState(() {
         _reason = reason;
+        _isAsr = false;
+        _isSkip = false;
+      });
+    });
+    // ⚠️ **「因为静音而跳过」单独一条流** —— 它**不是失败** ⇒ ⇒ 混进
+    // 失败流 ⇒ ⇒ 用户会以为 TTS 坏了。
+    _skipSub = TtsEngine.skips.listen((reason) {
+      if (!mounted) return;
+      setState(() {
+        _reason = reason;
+        _isSkip = true;
         _isAsr = false;
       });
     });
@@ -60,6 +79,7 @@ class _TtsErrorBannerState extends State<TtsErrorBanner> {
   void dispose() {
     _sub?.cancel();
     _asrSub?.cancel();
+    _skipSub?.cancel();
     super.dispose();
   }
 
@@ -69,8 +89,14 @@ class _TtsErrorBannerState extends State<TtsErrorBanner> {
     final reason = _reason;
     if (reason == null || reason.isEmpty) return const SizedBox.shrink();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF3A1D1D) : const Color(0xFFFFE5E5);
-    final fg = isDark ? const Color(0xFFFFB4AB) : const Color(0xFF93000A);
+    // ⚠️ **「静音跳过」用琥珀色**（中性）⇒ ⇒ 红色是「出事了」⇒ ⇒ 用户
+    // 不会以为 TTS 坏了。
+    final bg = _isSkip
+        ? (isDark ? const Color(0xFF3A2F1D) : const Color(0xFFFFF3D6))
+        : (isDark ? const Color(0xFF3A1D1D) : const Color(0xFFFFE5E5));
+    final fg = _isSkip
+        ? (isDark ? const Color(0xFFFFD08A) : const Color(0xFF8A5A00))
+        : (isDark ? const Color(0xFFFFB4AB) : const Color(0xFF93000A));
     return Container(
       width: double.infinity,
       color: bg,
@@ -85,10 +111,14 @@ class _TtsErrorBannerState extends State<TtsErrorBanner> {
               // ⚠️ 上下文（译文）＋ 原因（原文）**两者都在** —— 原因不重包
               // （HTTP 码 / 门 / 引擎没初始化，处置完全不同）。
               l10n == null
-                  ? 'Speech failed: $reason'
-                  : (_isAsr
-                        ? l10n.asrFailed(reason)
-                        : l10n.ttsSpeakFailed(reason)),
+                  ? (_isSkip
+                        ? 'Read-aloud skipped: $reason'
+                        : 'Speech failed: $reason')
+                  : (_isSkip
+                        ? l10n.ttsSkipped(reason)
+                        : (_isAsr
+                              ? l10n.asrFailed(reason)
+                              : l10n.ttsSpeakFailed(reason))),
               style: TextStyle(color: fg, fontSize: 13),
             ),
           ),

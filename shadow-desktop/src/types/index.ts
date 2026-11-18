@@ -217,6 +217,26 @@ export interface Message {
    *  something (change the theme, ask the user a question, …). Rendered
    *  as a tool card instead of a text bubble. */
   tool_call?: ToolCallMessage;
+  /**
+   * 这一轮由 **AG-UI 承载**画出来的 A2UI 面（官方 `ACTIVITY_SNAPSHOT`）。
+   *
+   * ⚠️ 载荷是**官方 activity 的 content**（A2UI v1.0 的 ops 数组）⇒ ⇒
+   * 零翻译 ⇒ ⇒ 端脑不合规就是官方 SDK 拒（客户端如实报出来）。
+   */
+  a2ui_surface?: A2uiSurfaceMessage;
+}
+
+/**
+ * AG-UI 承载的那块面（官方 `ACTIVITY_SNAPSHOT` 的载荷）。
+ *
+ * ⚠️ `messages` 是**官方 ops 数组**（每条一条 A2UI v1.0 消息）⇒ ⇒
+ * 直接喂官方 `MessageProcessor` 即可。
+ */
+export interface A2uiSurfaceMessage {
+  /** 官方 activity 的 messageId（`a2ui-surface-<surfaceId>`）。 */
+  messageId: string;
+  /** 官方 activity 的 content（A2UI v1.0 的 ops 数组）。 */
+  messages: unknown[];
 }
 
 /** A client-side tool call's lifecycle. */

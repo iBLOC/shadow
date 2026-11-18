@@ -5,7 +5,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/providers/chat_provider.dart';
 import 'package:shadow_mobile/providers/conversation_mode_provider.dart';
-import 'package:shadow_mobile/providers/genui_provider.dart';
 import 'package:shadow_mobile/providers/service_provider.dart';
 import 'package:shadow_mobile/providers/theme_provider.dart';
 import 'package:shadow_mobile/screens/chat_screen.dart';
@@ -36,8 +35,8 @@ void main() {
 
   /// 首页用的 override 集合。
   ///
-  /// 刻意**不**覆盖 `useAgent2UIModeProvider` —— Agent2UI 那个入口
-  /// 就是靠它切换的，覆盖掉就测不到了。
+  /// ⚠️ 2026-11-18：那块 **A2UI 独立面板**已下线 ⇒ ⇒ **不再有**「面板开/关」
+  /// 那个开关 ⇒ ⇒ 这里**不用**再覆盖它 ⇒ ⇒ 覆盖集合回到「最朴素的四个」。
   List<Override> homeOverrides() => [
     serviceProvider.overrideWith((ref) => MockServiceNotifier()),
     themeModeProvider.overrideWith((ref) => MockThemeNotifier()),
@@ -70,7 +69,7 @@ void main() {
   }
 
   group('ChatScreen 首页', () {
-    testWidgets('AppBar 右侧的入口都在（设置 / 语音 / Agent2UI）', (
+    testWidgets('AppBar 右侧的入口都在（设置 / 语音）', (
       WidgetTester tester,
     ) async {
       await pumpChat(tester);
@@ -80,31 +79,29 @@ void main() {
       // ⇒ AppBar 右侧**空无一物**，设置页进不去。
       expect(find.byIcon(Icons.settings), findsOneWidget);
       expect(find.byIcon(Icons.phone), findsOneWidget);
-      expect(find.byIcon(Icons.widgets_outlined), findsOneWidget);
+      // ⚠️ 2026-11-18：这里**曾经**还有第三个 —— 一个常驻的 `widgets` 按钮
+      // （开/关那块 A2UI **独立面板**）⇒ ⇒ 面板下线 ⇒ ⇒ 它也摘了
+      // ⇒ ⇒ **AppBar 上不再有「另一个界面」的入口**。
+      expect(find.byIcon(Icons.widgets_outlined), findsNothing);
+      expect(find.byIcon(Icons.widgets), findsNothing);
     });
 
-    testWidgets('Agent2UI 是能进能出的（不再是只能进不能出）', (WidgetTester tester) async {
+    testWidgets('对话页上**没有**第二个界面（A2UI 的面只内联在消息里）', (
+      WidgetTester tester,
+    ) async {
       await pumpChat(tester);
 
-      // 以前唯一的入口是「本地模型没装好 → 下载框 → Use Agent2UI」，
-      // 下载框下线之后那个入口就没了 ⇒ 现在补一个常驻按钮。
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChatScreen)),
-      );
-
-      await tester.tap(find.byIcon(Icons.widgets_outlined));
-      // Agent2UI 视图里有 CircularProgressIndicator（无限动画），
-      // pumpAndSettle 等不到底 —— 用有界泵。
-      for (var i = 0; i < 6; i++) {
-        await tester.pump(const Duration(milliseconds: 50));
-      }
-
-      expect(container.read(useAgent2UIModeProvider), isTrue);
-      // ⚠️ **同页共存** ⇒ AppBar 上的其它入口**不让位**了
-      //（以前是二选一 ⇒ 对话整块被顶掉 ⇒ 入口也跟着让位）。
+      // ⚠️ 2026-11-18 用户诉求逐字：「现在移动端 对话也没按和agent2ui页面
+      // 还是两个页面 有没有一种可能合并为一个页面使用a2ui 传输协议使用ag-ui」
+      // ⇒ ⇒ 那块**独立面板**（走 A2A、自带输入条与连接状态栏）下线了
+      // ⇒ ⇒ 现在**只有对话那一个输入框** ⇒ ⇒ 用户看到的**只有一个页面**。
+      final l10n = l10nOf(tester);
+      expect(find.text(l10n.tapToTypeHoldToTalk), findsOneWidget);
+      // 面板那个输入框的占位（「让端脑画界面…」）不许再出现。
+      expect(find.text(l10n.askA2ui), findsNothing);
+      // 其它入口一个不少（摘面板没有误伤对话）。
       expect(find.byIcon(Icons.settings), findsOneWidget);
-      // ⚠️ 而且**对话还在** ⇒ 这才是「共存」而不是「换页」。
-      expect(find.text(l10nOf(tester).tapToTypeHoldToTalk), findsOneWidget);
+      expect(find.byIcon(Icons.history), findsOneWidget);
     });
 
     testWidgets('进首页不会弹本地模型下载框', (WidgetTester tester) async {

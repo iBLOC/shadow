@@ -1,5 +1,5 @@
 import { AGUI_CUSTOM_NAMES, AGUI_KNOWN_EVENT_TYPES } from './types';
-import type { AguiCustomRecord, AguiEvent, AguiKnownEvent } from './types';
+import type { AguiActivityRecord, AguiCustomRecord, AguiEvent, AguiKnownEvent } from './types';
 
 /** 读一个「可能是字符串」的值（**不猜**）—— 形状不对就当没有。 */
 function readString(v: unknown): string | null {
@@ -73,6 +73,13 @@ export interface AguiTurnState {
   unknownEventTypes: string[];
   /** 端脑发的 CUSTOM（工具结果／step／route／handoff）—— **原样收着，不丢**。 */
   customs: AguiCustomRecord[];
+  /**
+   * 端脑发的 **activity**（官方 `ACTIVITY_SNAPSHOT`）—— **原样收着，不丢**。
+   *
+   * ⚠️ 不许吞掉：**AG-UI 承载的 A2UI 面就在这里** ⇒ ⇒ 吞掉＝那块面
+   * 静默消失＝用户看到「什么都没画」却不报错 ⇒ ⇒ 失败长得像成功。
+   */
+  activities: AguiActivityRecord[];
   /** 端脑自己的收口状态（`RUN_FINISHED.metadata.telencephalonState`）—— 原样带出。 */
   endState: string | null;
 }
@@ -104,6 +111,7 @@ export function initialAguiTurnState(): AguiTurnState {
     outcome: null,
     unknownEventTypes: [],
     customs: [],
+    activities: [],
     endState: null,
   };
 }
@@ -205,6 +213,18 @@ export function reduceAguiEvent(state: AguiTurnState, event: AguiEvent): AguiTur
         status: 'failed',
         error: event.message,
         runId: event.metadata?.runId ?? state.runId,
+      };
+    case 'ACTIVITY_SNAPSHOT':
+      // ⚠️ **归约器不许吞掉 activity** —— AG-UI 承载的 A2UI 面就在这里
+      // ⇒ ⇒ 吞掉＝那块面静默消失 ⇒ ⇒ 失败长得像成功。
+      return {
+        ...state,
+        activities: state.activities.concat({
+          messageId: event.messageId,
+          activityType: event.activityType,
+          content: event.content,
+          ...(event.replace != null ? { replace: event.replace } : {}),
+        }),
       };
     case 'CUSTOM':
       // ⚠️ lobe 本地工具的结果、step／route／handoff **全走 CUSTOM**

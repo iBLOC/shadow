@@ -78,6 +78,37 @@ export interface AguiCustom {
   value: unknown;
 }
 
+/**
+ * AG-UI 的 **activity** 事件（官方 `ACTIVITY_SNAPSHOT`）。
+ *
+ * ⚠️ 官方 `@ag-ui/core` 的 `ActivitySnapshotEvent` 字段就是这些 ⇒ ⇒
+ * **字段数不许多**（官方 runtime 不认多字段）⇒ ⇒ 多了就是被拒 ⇒ ⇒
+ * 界面上「什么都没有」⇒ ⇒ 失败长得像成功。
+ *
+ * ⚠️ `content` 的形状**按 activityType 走**：我们只认 `a2ui-surface`
+ * 那一种（它的 content 是 A2UI v1.0 的 ops 数组）⇒ ⇒ 见 `a2uiActivity.ts`。
+ */
+export interface AguiActivitySnapshot {
+  type: 'ACTIVITY_SNAPSHOT';
+  messageId: string;
+  activityType: string;
+  content: unknown;
+  /** 官方语义：这一条是**替换**同名 activity（不是追加）。 */
+  replace?: boolean;
+  timestamp?: number;
+  rawEvent?: unknown;
+  metadata?: Record<string, unknown>;
+  subagentRunId?: string;
+}
+
+/** 归约后收着的一条 activity（**原样**：不解释、不改写）。 */
+export interface AguiActivityRecord {
+  messageId: string;
+  activityType: string;
+  content: unknown;
+  replace?: boolean;
+}
+
 /** 端脑发的 CUSTOM 名字（**逐字**对着端脑 `agui.rs` 里那四处 `custom(...)` 调用）。 */
 export const AGUI_CUSTOM_NAMES = {
   /** lobe 本地工具的结果（**不是** AG-UI 的 TOOL_CALL_RESULT —— 端脑刻意不发那个）。 */
@@ -110,6 +141,7 @@ export type AguiKnownEvent =
   | AguiToolCallEnd
   | AguiRunFinished
   | AguiRunError
+  | AguiActivitySnapshot
   | AguiCustom;
 
 export type AguiEvent = AguiKnownEvent | AguiUnknownEvent;
@@ -125,6 +157,7 @@ export const AGUI_KNOWN_EVENT_TYPES = [
   'TOOL_CALL_END',
   'RUN_FINISHED',
   'RUN_ERROR',
+  'ACTIVITY_SNAPSHOT',
   'CUSTOM',
 ] as const;
 

@@ -1,4 +1,5 @@
 import { openaiClient } from './openaiClient';
+import { probeDeviceAudio } from './deviceAudio';
 
 /**
  * TTS (Text-to-Speech) service for desktop.
@@ -38,6 +39,27 @@ export interface TtsOptions {
    * 设为 false 可以强制只在主路径播放。
    */
   allowFallback?: boolean;
+  /**
+   * **用户执意要听**（点了「仍要朗读」）⇒ ⇒ 绕过设备静音判定。
+   *
+   * ⚠️ 默认 false ⇒ ⇒ 静音时仍然跳过（省 TTS 算力）⇒ ⇒ 只有用户点了那
+   * 个开关才走这条路 ⇒ ⇒ 他既然要听，就别替他省这一次。
+   */
+  force?: boolean;
+}
+
+/**
+ * **出声结果** —— 「真的出声了吗」与「因为静音被跳过」要**分开**。
+ *
+ * ⚠️ 为什么分开：静音跳过**不是失败**（是省算力的主动选择）⇒ ⇒ 但也
+ * **不许静默**（用户点了朗读却什么都没发生 ⇒ ⇒ 界面得说清「设备静音，
+ * 已跳过」）⇒ ⇒ 所以它既不是 `spoke`，也不是「失败」。
+ */
+export interface TtsSpeakResult {
+  /** 真的出声了吗（音频播完了吗）。 */
+  spoke: boolean;
+  /** 因为**设备静音**而跳过 —— **一次合成请求都没发**（省 TTS 算力）。 */
+  skippedMuted: boolean;
 }
 
 const DEFAULT_OPTIONS: Required<TtsOptions> = {
@@ -46,6 +68,7 @@ const DEFAULT_OPTIONS: Required<TtsOptions> = {
   speed: 1.0,
   lang: 'zh-CN',
   allowFallback: true,
+  force: false,
 };
 
 const audioCache = new Map<string, string>();
@@ -149,10 +172,30 @@ export const ttsService = {
    *
    * 仅用于对话界面朗读 — 陪伴模式 (WebRTC) 不走此服务。
    */
-  async speak(text: string, options: TtsOptions = {}): Promise<void> {
-    if (!this.isEnabled() || !text.trim()) return;
+  async speak(text: string, options: TtsOptions = {}): Promise<TtsSpeakResult> {
+    if (!this.isEnabled() || !text.trim()) {
+      return { spoke: false, skippedMuted: false };
+    }
 
     const opts: Required<TtsOptions> = { ...DEFAULT_OPTIONS, ...options };
+
+    // ⚠️ **设备静音 ⇒ 一次合成都不发**（省 TTS 算力）——
+    // 静音时合成出来的音频**没人听得见** ⇒ ⇒ 那一发纯属浪费。
+    //
+    // ⚠️ **「查不到」不跳**（probeDeviceAudio 的 known = false）⇒ ⇒ 宁可
+    // 多合成一次，也绝不静默吞掉声音（那是「失败长得像成功」）。
+    //
+    // ⚠️ **force**（用户点「仍要朗读」）⇒ ⇒ **绕过这一整个判定** ⇒ ⇒
+    // 用户执意要听 ⇒ ⇒ 替他省算力就是替他做主。
+    if (!opts.force) {
+      const deviceAudio = await probeDeviceAudio();
+      if (deviceAudio.known && deviceAudio.muted) {
+        console.warn(
+          '[tts] device output is muted — read-aloud skipped (no synthesis request sent).',
+        );
+        return { spoke: false, skippedMuted: true };
+      }
+    }
 
     try {
       const key = cacheKey(text, opts);
@@ -168,8 +211,8 @@ export const ttsService = {
         url = URL.createObjectURL(blob);
         audioCache.set(key, url);
       }
-      await this.playOpenAiAudio(url);
-      return;
+      const played = await this.playOpenAiAudio(url);
+      return { spoke: played, skippedMuted: false };
     } catch (openaiErr) {
       // 仅当 temporal lobe 未配置 TTS 模型时降级；其他错误 (网络、401/500)
       // 不应静默吞掉，让上层错误对话框处理
@@ -192,39 +235,40 @@ export const ttsService = {
         text.slice(0, 32),
         '...)',
       );
-      return;
+      return { spoke: false, skippedMuted: false };
     }
 
     await this.playWebSpeech(text, opts.lang);
+    return { spoke: true, skippedMuted: false };
   },
 
-  playOpenAiAudio(url: string): Promise<void> {
+  playOpenAiAudio(url: string): Promise<boolean> {
     this.stop();
 
-    return new Promise<void>((resolve) => {
+    return new Promise<boolean>((resolve) => {
       const audio = new Audio(url);
       audio.onended = () => {
         if (currentAudio === audio) currentAudio = null;
-        resolve();
+        resolve(true);
       };
       audio.onerror = () => {
         if (currentAudio === audio) currentAudio = null;
-        resolve();
+        resolve(false);
       };
       currentAudio = audio;
       audio.play().catch(() => {
         if (currentAudio === audio) currentAudio = null;
-        resolve();
+        resolve(false);
       });
     });
   },
 
-  playWebSpeech(text: string, lang: string): Promise<void> {
-    if (!isWebSpeechAvailable()) return Promise.resolve();
+  playWebSpeech(text: string, lang: string): Promise<boolean> {
+    if (!isWebSpeechAvailable()) return Promise.resolve(false);
 
     window.speechSynthesis.cancel();
 
-    return new Promise<void>((resolve) => {
+    return new Promise<boolean>((resolve) => {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = lang;
       const voice = pickWebSpeechVoice(lang);
@@ -232,25 +276,27 @@ export const ttsService = {
 
       let resolved = false;
       let safetyTimeout: number | undefined;
-      const finalize = () => {
+      // ⚠️ **播完了（onend）与出错了（onerror）不是一回事** ⇒ ⇒ 结果要分开
+      // 报出去（否则「没播出来」会被当成「播了」⇒ ⇒ 失败长得像成功）。
+      const finalize = (spoke: boolean) => {
         if (resolved) return;
         resolved = true;
         if (safetyTimeout !== undefined) window.clearTimeout(safetyTimeout);
         if (currentUtterance === utterance) currentUtterance = null;
-        resolve();
+        resolve(spoke);
       };
 
-      utterance.onend = finalize;
-      utterance.onerror = finalize;
+      utterance.onend = () => finalize(true);
+      utterance.onerror = () => finalize(false);
       // Some browsers (Chrome) stop firing events after ~15s; guard with a timeout.
-      safetyTimeout = window.setTimeout(finalize, Math.max(text.length * 80, 30_000));
+      safetyTimeout = window.setTimeout(() => finalize(false), Math.max(text.length * 80, 30_000));
 
       currentUtterance = utterance;
       try {
         window.speechSynthesis.speak(utterance);
       } catch (e) {
         console.warn('[tts] speechSynthesis.speak threw:', e);
-        finalize();
+        finalize(false);
       }
     });
   },

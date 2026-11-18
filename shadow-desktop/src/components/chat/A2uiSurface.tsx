@@ -1,125 +1,89 @@
+import { A2uiSurface as SdkA2uiSurface, MarkdownComponentContext } from '@a2ui/react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
+
 import {
+  hasRenderableContent,
   isStructurallyEmptySurface,
-  type A2uiComponent,
-  type A2uiProps,
-  type A2uiSurfaceSnapshot,
+  unknownComponentsOf,
+  type A2uiSurface as A2uiSurfaceModel,
 } from '../../lib/a2uiProtocol';
 
 /**
- * Renders an A2UI surface.
+ * 渲染一块 A2UI surface —— **官方 SDK 的 React 渲染器**。
  *
- * ## Why a second renderer instead of reusing the tool cards
+ * ## 为什么是官方渲染器
  *
- * The desktop already has a component-rendering pipeline for chat tool
- * parts (`ToolPartRouter` / `ClientToolForm` / `ToolCallMessageCard`).
- * The capability manifest argues that the cheaper path is to teach *that*
- * pipeline the A2UI data model (`agent-surface.json` → `a2ui` →
- * `desktop._endSideExclusive`).
+ * ⚠️ 桌面端以前**自己手写**了一套 A2UI 协议栈（v0.8 的 SSE 解码 + 组件目录 +
+ * React 渲染器）⇒ ⇒ 那是「协议漂移」的温床：端脑一改措辞，桌面端就白屏。
+ * ⇒ ⇒ 现在协议层是官方 SDK（@a2ui/web_core ＋ @a2ui/react 0.15.0），
+ * 这一份文件只做三件 SDK 不做的事：
  *
- * This file is deliberately **not** that. The reason is structural, not
- * stylistic: the tool pipeline is driven by the AI SDK's `UIMessage` part
- * shape and is wired into the chat message list, while A2UI surfaces arrive
- * out-of-band — a separate HTTP call to `POST /a2a` that returns its own
- * component tree, keyed by its own surface id. Folding that into the tool
- * pipeline would mean teaching the chat message store about surfaces that
- * are not messages.
+ * ❶ **外壳**：数据属性（surface id / 空不空）—— 判据要用；
+ * ❷ **Markdown**：官方基础目录的 Text 用 Markdown 渲染，而 Markdown 渲染器
+ *    **由应用提供**（app 级上下文）⇒ ⇒ 这一份给全页统一的那一个；
+ * ❸ **占位**：官方渲染器对**不认识的组件类型**不画（也不抛）
+ *    ⇒ ⇒ 客户端自己补一个占位 ⇒ 「端脑加了新组件」不会变成「一块空白」。
  *
- * So this is a **separate, narrow** renderer over the A2UI catalog. It stays
- * small on purpose: the brain only emits four component types
- * (`telencephalon/src/a2a/a2ui.rs`), and the catalog below is exactly
- * those four. Unknown types degrade to a placeholder rather than throwing —
- * a newer brain must not white-screen an older desktop.
+ * ## ⚠️ 自定义元素的那一行补丁
+ *
+ * 官方基础目录的组件是 **Lit 自定义元素** ⇒ 它们的 connectedCallback 会调
+ * CSSStyleSheet.replaceSync ⇒ **jsdom 没有这个 API** ⇒ 元素一连上就炸
+ * ⇒ ⇒ 桌面端的判据（jsdom）里整块界面会是空的。
+ * ⇒ ⇒ 这里补一个**只在缺它时**才装的空实现（浏览器里本来就有 ⇒ 装不上）。
  */
-
-/** Props of `Column` — children are component ids, resolved by the model. */
-interface ColumnProps extends A2uiProps {
-  children?: string[];
-  alignment?: string;
-}
-
-/** Props of `Text` — the payload is either a literal string or a text node. */
-interface TextProps extends A2uiProps {
-  text?: unknown;
-  usageHint?: string;
-}
-
-/** Props of `TaskCard` — mirrors the mobile catalog item of the same name. */
-interface TaskCardProps extends A2uiProps {
-  title?: string;
-  description?: string;
-  status?: 'pending' | 'in_progress' | 'completed';
-  priority?: 'low' | 'medium' | 'high';
-}
-
-/** Props of `AgentStatusIndicator` — same catalog item on mobile. */
-interface AgentStatusIndicatorProps extends A2uiProps {
-  agentName?: string;
-  status?: 'idle' | 'thinking' | 'executing' | 'error' | 'unknown';
-  message?: string;
-}
-
-function str(value: unknown): string | undefined {
-  return typeof value === 'string' && value !== '' ? value : undefined;
-}
-
-/** `Text.text` is `{ literalString: "…" }` on the wire, but a bare string is legal too. */
-function textLiteral(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (typeof value === 'object' && value !== null) {
-    const literal = (value as Record<string, unknown>).literalString;
-    if (typeof literal === 'string') return literal;
+function ensureCustomElementStyleApi(): void {
+  if (typeof CSSStyleSheet === 'undefined') return;
+  if ('replaceSync' in CSSStyleSheet.prototype) return;
+  try {
+    Object.defineProperty(CSSStyleSheet.prototype, 'replaceSync', {
+      value: function replaceSync() {
+        /* jsdom 没有 adoptedStyleSheets ⇒ 这里什么都不做 */
+      },
+      configurable: true,
+      writable: true,
+    });
+  } catch (error) {
+    // ⚠️ **不许把失败吞成「什么都没有」** —— 装不上这个垫片 ⇒ 官方基础目录的
+    // Lit 自定义元素在 connectedCallback 里调 replaceSync 会炸 ⇒ ⇒ 界面是一块空白
+    // ⇒ ⇒ 那正是「失败长得像成功」。⇒ ⇒ 这里**如实出声**，不静默继续。
+    console.warn(
+      '[a2ui] 官方基础目录的 CSSStyleSheet.replaceSync 垫片装不上 ⇒ 官方自定义元素可能渲染不出来：',
+      error,
+    );
   }
-  return '';
 }
+
+ensureCustomElementStyleApi();
 
 /**
- * Status → visual treatment.
+ * 官方基础目录的 Text 用 **Markdown** 渲染
+ * （端脑的标题就是 `# Tasks (1)` ⇒ 靠 Markdown 的 `#` 表达标题层级）。
  *
- * ⚠️ The colors come from the design tokens (`--success` / `--warning` /
- * `--destructive`), never from hard-coded hex: `check-agent-surface.mjs`
- * keeps the desktop palette token-driven, and a raw hex here would be a
- * silent palette fork.
- *
- * ⚠️ The status / priority **tokens** are shown verbatim (`in_progress`,
- * `HIGH`, …) rather than translated. They are protocol values, and the
- * mobile catalog shows the same raw tokens
- * (`shadow-mobile/lib/services/genui/shadow_catalog.dart:90` renders
- * `priority.toUpperCase()`) ⇒ translating them on one side would make the
- * two clients disagree about the same surface.
+ * ⚠️ 用的是**应用自己的** Markdown 渲染器（react-markdown ＋ remark-gfm，
+ * 与对话区同一套）⇒ ⇒ 界面里的文字与聊天里的文字长得一样。
  */
-const TASK_STATUS_STYLE: Record<string, string> = {
-  pending: 'bg-muted text-muted-foreground',
-  in_progress: 'bg-brand/10 text-[hsl(var(--warning))]',
-  completed: 'bg-brand/10 text-[hsl(var(--success))]',
-};
-
-const AGENT_STATUS_STYLE: Record<string, string> = {
-  idle: 'bg-muted text-muted-foreground',
-  thinking: 'bg-brand/10 text-[hsl(var(--warning))]',
-  executing: 'bg-brand/10 text-brand',
-  error: 'bg-destructive/10 text-destructive',
-  // ⚠️ **「我们不知道」不是「没事」** —— 端脑从没探活过的叶区（占位记录）就是这一档。
-  // 用虚线边框把它和 `idle` 区分开：桌面端**显示 status 文本**，
-  // 但形状也要能区分（两端的说法必须一致）。
-  unknown: 'bg-muted text-muted-foreground border border-dashed border-muted-foreground',
-};
+function A2uiMarkdown({ markdown }: { markdown: string }) {
+  return <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>;
+}
 
 export interface A2uiSurfaceProps {
-  surface: A2uiSurfaceSnapshot;
+  surface: A2uiSurfaceModel;
 }
 
 export function A2uiSurface({ surface }: A2uiSurfaceProps) {
   const { t } = useTranslation();
-  const byId = new Map(surface.components.map((c) => [c.id, c]));
+  const unknown = unknownComponentsOf(surface);
 
-  if (!surface.rootId) {
+  // ⚠️ **没有根组件 ⇒ 画不出来** ⇒ 如实说，不画一块空白。
+  if (!hasRenderableContent(surface)) {
     return (
       <div
         className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground"
         data-testid="a2ui-surface-no-root"
       >
-        {surface.rendered ? t('a2ui.missingRoot') : t('a2ui.waitingForRender')}
+        {t('a2ui.missingRoot')}
       </div>
     );
   }
@@ -128,173 +92,26 @@ export function A2uiSurface({ surface }: A2uiSurfaceProps) {
     <div
       className="flex flex-col gap-3"
       data-testid="a2ui-surface"
-      data-surface-id={surface.surfaceId}
+      data-surface-id={surface.id}
       // ⚠️ **「空」也是一种状态** —— 端脑把「没有内容」画成一个只有文字的
-      // surface ⇒ 客户端必须**分得清**「有内容」与「空」
-      // （判据见 `isStructurallyEmptySurface`）。
+      // surface ⇒ 客户端必须**分得清**「有内容」与「空」。
       // ⚠️ 界面上两者长得一样 —— 因为**端脑自己已经在空 surface 里说了实话**
-      // （「任务（0）」「还没有任务」）⇒ 客户端**不再补一句**自己的概括。
+      // ⇒ 客户端**不再补一句**自己的概括。
       data-surface-empty={isStructurallyEmptySurface(surface) ? 'true' : 'false'}
     >
-      <A2uiNode id={surface.rootId} byId={byId} path={new Set()} />
-    </div>
-  );
-}
-
-/**
- * One node of the component tree.
- *
- * `path` holds the **ancestors** of this node, and it is what stops a
- * component tree that references itself: a malformed payload would
- * otherwise recurse until the stack overflows and take the whole page down.
- *
- * ⚠️ **Why ancestors and not "everything seen so far"**: a "seen" set would
- * also swallow a component that is referenced **twice** in the tree (the
- * second reference would render as nothing). The guard has to answer
- * "is this an *ancestor* of me?" — i.e. a cycle — and nothing more.
- */
-function A2uiNode({
-  id,
-  byId,
-  path,
-}: {
-  id: string;
-  byId: Map<string, A2uiComponent>;
-  path: ReadonlySet<string>;
-}) {
-  const { t } = useTranslation();
-
-  if (path.has(id)) return null; // cycle — stop here
-  const childPath = new Set(path);
-  childPath.add(id);
-
-  const component = byId.get(id);
-  if (!component) {
-    return (
-      <div
-        className="rounded-md border border-dashed border-border p-2 text-xs text-muted-foreground"
-        data-testid="a2ui-missing-component"
-      >
-        {`${t('a2ui.missingComponent')} ${id}`}
-      </div>
-    );
-  }
-
-  const entries = Object.entries(component.component);
-  const [type, props] = entries[0] ?? ['', {} as A2uiProps];
-
-  switch (type) {
-    case 'Column': {
-      const column = props as ColumnProps;
-      const children = Array.isArray(column.children) ? column.children : [];
-      return (
+      <MarkdownComponentContext.Provider value={A2uiMarkdown}>
+        <SdkA2uiSurface surface={surface} />
+      </MarkdownComponentContext.Provider>
+      {unknown.map((component) => (
         <div
-          className={column.alignment === 'center' ? 'flex flex-col items-center gap-3' : 'flex flex-col gap-3'}
-          data-testid="a2ui-column"
-        >
-          {children.map((childId) => (
-            <A2uiNode key={childId} id={childId} byId={byId} path={childPath} />
-          ))}
-        </div>
-      );
-    }
-
-    case 'Text': {
-      const text = props as TextProps;
-      const literal = textLiteral(text.text);
-      const usageHint = str(text.usageHint);
-      if (usageHint === 'h3' || usageHint === 'h2' || usageHint === 'h1') {
-        const Tag = usageHint as 'h1' | 'h2' | 'h3';
-        return (
-          <Tag className="text-base font-semibold text-foreground" data-testid="a2ui-text">
-            {literal}
-          </Tag>
-        );
-      }
-      return (
-        <p className="text-sm text-foreground" data-testid="a2ui-text">
-          {literal}
-        </p>
-      );
-    }
-
-    case 'TaskCard': {
-      const card = props as TaskCardProps;
-      const status = card.status ?? 'pending';
-      const priority = card.priority ?? 'medium';
-      return (
-        <div
-          className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3"
-          data-testid="a2ui-task-card"
-          data-status={status}
-          data-priority={priority}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium text-foreground">{card.title ?? ''}</span>
-            <span
-              className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${
-                TASK_STATUS_STYLE[status] ?? TASK_STATUS_STYLE.pending
-              }`}
-              data-testid="a2ui-task-status"
-            >
-              {status}
-            </span>
-          </div>
-          {card.description ? (
-            <span className="text-xs text-muted-foreground" data-testid="a2ui-task-description">
-              {card.description}
-            </span>
-          ) : null}
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground" data-testid="a2ui-task-priority">
-            {priority}
-          </span>
-        </div>
-      );
-    }
-
-    case 'AgentStatusIndicator': {
-      const indicator = props as AgentStatusIndicatorProps;
-      // ⚠️ **缺 status 声明 ≠ 「就绪」** ⇒ 缺省落 `unknown`，不落 `idle`
-      // （「没说」和「没事」是两件事）。
-      const status = indicator.status ?? 'unknown';
-      return (
-        <div
-          className="flex items-center gap-2 rounded-lg border border-border bg-card p-3"
-          data-testid="a2ui-agent-status"
-          data-status={status}
-        >
-          <span
-            className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${
-              AGENT_STATUS_STYLE[status] ?? AGENT_STATUS_STYLE.unknown
-            }`}
-          >
-            {status}
-          </span>
-          <span className="text-sm text-foreground">{indicator.agentName ?? ''}</span>
-          {indicator.message ? (
-            <span className="text-xs text-muted-foreground">{indicator.message}</span>
-          ) : null}
-        </div>
-      );
-    }
-
-    default:
-      // ⚠️ Unknown component type — render a placeholder instead of throwing.
-      // A newer brain must not white-screen an older desktop.
-      return (
-        <div
+          key={component.id}
           className="rounded-md border border-dashed border-border p-2 text-xs text-muted-foreground"
           data-testid="a2ui-unknown-component"
-          data-component-type={type}
+          data-component-type={component.type}
         >
-          {type || t('a2ui.unknownComponent')}
+          {component.type}
         </div>
-      );
-  }
-}
-
-/** Exported for the panel: does this snapshot have anything to draw? */
-export function hasRenderableContent(surface: A2uiSurfaceSnapshot | undefined): boolean {
-  if (!surface) return false;
-  return surface.rendered && Boolean(surface.rootId) && surface.components.length > 0;
+      ))}
+    </div>
+  );
 }

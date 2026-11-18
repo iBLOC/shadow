@@ -21,9 +21,13 @@ import {
   type CuDisposition,
   type CuOutcome,
 } from './cuErrors';
-import { requestA2uiSurface } from './a2uiClient';
 import { weatherClient } from './weatherClient';
-import { buildSurfaceFromEvents } from './a2uiProtocol';
+// ⚠️⚠️ **协议层不静态 import** —— a2uiClient / a2uiProtocol 会拖进官方 React
+//   渲染器（@a2ui/react），而它在**模块求值**时就要 HTMLElement
+//   ⇒ ⇒ node 环境（没有 DOM）里静态 import 它 ⇒ 直接 ReferenceError
+//   ⇒ ⇒ 这一份被 src/lib/agui/bridge.ts import ⇒ ⇒ node 环境里的判据
+//   （例：src/lib/agui/__tests__/agui.live.test.ts）会在**收集阶段**就炸。
+//   ⇒ ⇒ 只在**真调这个工具**时才动态加载（浏览器 / jsdom 里才有 DOM）。
 import type { ToolField } from '../components/chat/ClientToolForm';
 import type { OpenAiTool, ToolParameters } from './telencephalonClient';
 
@@ -413,6 +417,42 @@ async function runCuRead<T>(
 const IMAGE_LOBE = 'occipital';
 
 /**
+ * **视频生成的轮询预算** —— 官方那套是**异步**（几十秒到几分钟）⇒ ⇒ 同步
+ * 等会撞 HTTP 超时 ⇒ ⇒ 这里有**明确的预算**。
+ *
+ * ⚠️ **超时不许假装失败** —— 任务还在上游跑着 ⇒ ⇒ 报「还在生成」＋ 任务
+ * id ⇒ ⇒ 用户（或模型）过一会儿可以再来取（**失败长得像成功**的另一种
+ * 形态是「超时被说成失败」）。
+ */
+const VIDEO_POLL_INTERVAL_MS = 3000;
+const VIDEO_POLL_BUDGET_MS = 180000;
+
+/**
+ * **一个视频任务的工具结果** —— **成功 / 还在跑** 两种形状。
+ *
+ * ⚠️ **失败不走这里** —— 上游说 failed / cancelled ⇒ ⇒ **抛出去**（让这一
+ * 次工具调用真的是失败的）⇒ ⇒ 不许做成一句「生成失败」的报告 ⇒ ⇒ 那会让
+ * 模型把失败说成「视频好了」。
+ */
+function videoToolResult(
+  i18n: { t: (key: string, vars?: Record<string, unknown>) => string },
+  view: { status: string; url?: string; error?: string },
+  taskId: string,
+  model: string,
+): { report: string; video: Record<string, unknown> } {
+  if (view.status === 'succeeded' && view.url) {
+    return {
+      report: i18n.t('clientTools.videoGenerated', { url: view.url }),
+      video: { url: view.url, status: view.status, task_id: taskId, model },
+    };
+  }
+  return {
+    report: i18n.t('clientTools.videoProcessing', { taskId, model }),
+    video: { task_id: taskId, status: 'processing', model },
+  };
+}
+
+/**
  * 桌面端内置的客户端工具。
  *
  * 主题色的两端色调由 `styles/accent.g.ts` 的 `deriveAccentTones` 派生
@@ -507,6 +547,11 @@ export const desktopClientTools = new ClientToolRegistry()
       // ⚠️ **认不出的 view 当 tasks** —— 模型偶尔会瞎填；
       // 宁可画错一块看板，也不要让这一轮失败。
       const view = args.view === 'agents' ? 'agents' : 'tasks';
+      // ⚠️ **动态 import 协议层** —— 理由见文件头那处注释（node 环境不许拖进 React 渲染器）。
+      const [{ requestA2uiSurface }, { hasRenderableContent }] = await Promise.all([
+        import('./a2uiClient'),
+        import('./a2uiProtocol'),
+      ]);
       const result = await requestA2uiSurface({
         baseUrl: telencephalonClient.getBaseUrl(),
         apiKey: telencephalonClient.getApiKey(),
@@ -521,12 +566,12 @@ export const desktopClientTools = new ClientToolRegistry()
       // 拿「事件数 > 0」当判据 ⇒ 「没画界面」会被说成「已展开」
       // ⇒ ⇒ **失败长得像成功**。
       //
-      // 「画出来没有」由**协议层**判（`buildSurfaceFromEvents` ⇒ 有没有收到
-      // `beginRendering`）⇒ ⇒ 与面板那条路**同一套判据**（一处实现）。
-      const surface = buildSurfaceFromEvents(result.events);
+      // 「画出来没有」由**协议层**判（官方 SDK 真的把消息吃成了一块面
+      // ⇒ ⇒ 有没有根组件）⇒ ⇒ 与面板那条路**同一套判据**（一处实现）。
+      const surface = result.surface;
       const words = result.texts.join(' ').trim();
 
-      if (!surface) {
+      if (!surface || !hasRenderableContent(surface)) {
         // ⚠️ **没画出来 ⇒ 如实说** —— 端脑这次回的是纯文本
         // （「这里能看什么」）⇒ ⇒ 那就把**它自己的话**带给模型，
         // 别假装画出来了（界面不许说谎，工具结果也不许）。
@@ -850,6 +895,116 @@ export const desktopClientTools = new ClientToolRegistry()
         }),
         images,
       };
+    },
+  })
+  .register({
+    // ⚠️ **工具名、参数表（JSON Schema）与移动端必须逐字一致**
+    // （shadow/scripts/check-client-tools.mjs 逐字段比对 ⇒ 一边改了两边不改
+    // 就红）。形状是：结果 = `{ report, video }` —— **产物链接留在本地给
+    // 界面渲染**，模型只拿到 `report` 那一句（不把长链接塞进上下文）。
+    name: 'generate_video',
+    description:
+      'Generate a video from a text prompt. Use this when the user asks to make, create or render a video, animation or clip. The finished video link is shown to the user in the chat.',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description:
+            'What the video should show. Describe the subject, the motion and the camera concretely; the model on the other side cannot ask you questions. Omit it only when "task_id" is given.',
+        },
+        model: {
+          type: 'string',
+          description:
+            'Video model id to use. Omit to use the configured video_gen default (a cloud provider model).',
+        },
+        duration: {
+          type: 'integer',
+          description: 'Length of the video in seconds, 4 to 15. Defaults to 5.',
+        },
+        resolution: {
+          type: 'string',
+          enum: ['480P', '768P', '2K'],
+          description:
+            'Output resolution. 2K is only supported by MiniMax-H3. Defaults to 768P.',
+        },
+        ratio: {
+          type: 'string',
+          enum: ['adaptive', '21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
+          description:
+            'Aspect ratio. "adaptive" is not allowed for text-only videos — pick a concrete ratio such as 16:9. Defaults to 16:9.',
+        },
+        task_id: {
+          type: 'string',
+          description:
+            'Task id of a video generation that is still running. Pass it (with the model reported for that task) to fetch the finished video instead of starting a new one.',
+        },
+      },
+    },
+    execute: async (args) => {
+      // ⚠️ **确保 i18n 已初始化** —— 否则 `t()` 退化成返回 key（同 a2ui 那条）。
+      const i18n = ensureI18n();
+      const taskId = typeof args.task_id === 'string' ? args.task_id.trim() : '';
+      const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : '';
+      const model =
+        typeof args.model === 'string' && args.model.trim() ? args.model.trim() : undefined;
+
+      // ---- 查回上一轮还在跑的任务（不新建）----
+      if (taskId) {
+        if (!model) {
+          throw new Error(
+            'generate_video needs the "model" of the task when "task_id" is given (the brain does not remember it)',
+          );
+        }
+        const view = await telencephalonClient.queryVideo(taskId, model);
+        return videoToolResult(i18n, view, taskId, model);
+      }
+
+      if (!prompt) {
+        throw new Error('generate_video expects a non-empty "prompt"');
+      }
+      const duration = typeof args.duration === 'number' ? args.duration : undefined;
+      const resolution =
+        typeof args.resolution === 'string' && args.resolution.trim()
+          ? args.resolution.trim()
+          : undefined;
+      const ratio =
+        typeof args.ratio === 'string' && args.ratio.trim() ? args.ratio.trim() : undefined;
+
+      const created = await telencephalonClient.generateVideo({
+        prompt,
+        ...(model ? { model } : {}),
+        ...(duration != null ? { duration } : {}),
+        ...(resolution ? { resolution } : {}),
+        ...(ratio ? { ratio } : {}),
+      });
+      const usedModel = created.model || model || '';
+      const id = created.task_id;
+
+      // ⚠️ **轮询到完成或超时** —— 官方那套是异步 ⇒ ⇒ 这里有**明确的
+      // 预算** ⇒ ⇒ 超时**不许**假装失败（那会让用户以为视频坏了）。
+      const deadline = Date.now() + VIDEO_POLL_BUDGET_MS;
+      for (;;) {
+        const view = await telencephalonClient.queryVideo(id, usedModel);
+        if (view.status === 'succeeded') {
+          if (!view.url) {
+            throw new Error('generate_video: the task succeeded but no video url came back');
+          }
+          return videoToolResult(i18n, view, id, usedModel);
+        }
+        if (view.status === 'failed' || view.status === 'cancelled') {
+          throw new Error(
+            `generate_video: the video task ${id} ${view.status}${view.error ? ' — ' + view.error : ''}`,
+          );
+        }
+        if (Date.now() >= deadline) {
+          return {
+            report: i18n.t('clientTools.videoProcessing', { taskId: id, model: usedModel }),
+            video: { task_id: id, status: 'processing', model: usedModel },
+          };
+        }
+        await new Promise((resolve) => setTimeout(resolve, VIDEO_POLL_INTERVAL_MS));
+      }
     },
   })
   .register({

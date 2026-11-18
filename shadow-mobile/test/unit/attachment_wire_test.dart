@@ -96,15 +96,32 @@ void main() {
       expect(result.reason, contains('unsupported'));
     });
 
-    test('Word / Excel 那类二进制 → 还没接（不是「带格式的文本」）', () async {
+    test('Word 那类二进制 → 还没接（不是「带格式的文本」）', () async {
       expect(AttachmentEncoder.kindForExtension('docx'),
-          AttachmentKind.unsupported);
-      expect(AttachmentEncoder.kindForExtension('xlsx'),
           AttachmentKind.unsupported);
       final file = await write('a.docx', [1, 2, 3]);
       final result = await encoder.encode(file);
       expect(result.payload, isNull);
       expect(result.reason, contains('unsupported'));
+    });
+
+    test('表格认得（xlsx / xlsm）—— 它走数据那一条路，不进模型上下文', () async {
+      expect(AttachmentEncoder.kindForExtension('xlsx'),
+          AttachmentKind.spreadsheet);
+      expect(AttachmentEncoder.kindForExtension('xlsm'),
+          AttachmentKind.spreadsheet);
+      final file = await write('books.xlsx', [1, 2, 3]);
+      final result = await encoder.encode(file);
+      expect(result.payload!['media_type'],
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      expect(result.payload!['filename'], 'books.xlsx');
+    });
+
+    test('按 MIME 反查档位时大小写无关（xlsm 的 MIME 里有个大写 E）', () {
+      expect(
+          AttachmentEncoder.kindForMime(
+              'application/vnd.ms-excel.sheet.macroEnabled.12'),
+          AttachmentKind.spreadsheet);
     });
 
     test('别的音频格式 → 还没接（仓里同款先例：只收 wav / mp3）', () async {
