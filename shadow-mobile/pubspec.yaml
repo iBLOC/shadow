@@ -34,7 +34,22 @@ dependencies:
   usb_serial: ^0.5.0
 
   # Database
-  sqflite: ^2.3.0
+  # ⚠️ 2026-11-19（依赖升级那一刀）：**sqflite 这一族被钉回 2026-11-19 之前那版**
+  # ⇒ ⇒ 起因＝把 sqflite 2.4.2+1 升到 2.4.6（连带 sqflite_common 2.5.8→2.5.17）后
+  # ⇒ ⇒ **移动端全量 `flutter test` 多一条红**：`test/widget/management_hub_screen_test.dart`
+  # ⇒ ⇒ 「首卡滚过去之后能看到最后一行格子」报 **「A Timer is still pending even after
+  # ⇒ ⇒ the widget tree was disposed」**（栈在 `sqflite_common/src/database_mixin.dart`
+  # ⇒ ⇒ 的 `txnSynchronized` ⇒ ⇒ 10 秒那把锁超时 timer 没被取消）。
+  # ⚠️ **归属是判决性对比钉死的，不是猜的**：同一棵工作树、同一份代码，
+  # ⇒ ⇒ **旧锁（sqflite 2.4.2+1）全量 1173 过 / 13 跳 / 0 红**；
+  # ⇒ ⇒ **新锁（sqflite 2.4.6）全量 1172 过 / 13 跳 / 1 红** ⇒ ⇒ 红的**就是这一族**。
+  # ⚠️ 单跑那一个测试文件**新旧都过** ⇒ ⇒ 它只在**全量上下文**里触发（别的测试
+  # ⇒ ⇒ 先把 sqlite 事务那条路跑热）。
+  # ⇒ ⇒ 为什么钉死而不是 `^`：sqflite 2.4.2+1 允许 `sqflite_common >=2.5.6+1 <4.0.0`
+  # ⇒ ⇒ 不钉 sqflite_common 的话它照样会飘到 2.5.17 ⇒ ⇒ **三处要同刀**。
+  # ⇒ ⇒ 这三处回钉**只影响测试环境的 timer 泄漏**，不带性能收益（补丁版本）
+  # ⇒ ⇒ ⇒ ⇒ 真要吃到 2.4.6 那一族，得先修那条 timer 泄漏（另刀）。
+  sqflite: 2.4.2+1
   path: ^1.8.0
 
   # Multimodal input
@@ -83,7 +98,13 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_localization_linter: ^1.0.2
-  sqflite_common_ffi: ^2.3.0
+  # ⚠️ 2026-11-19（依赖升级那一刀）：**同刀回钉 sqflite 这一族的另外两处** ⇒ ⇒
+  # ⇒ ⇒ `sqflite_common_ffi` 2.4.7 与 `sqflite_common` 2.5.17 都要退回旧版
+  # ⇒ ⇒ （理由与判决性对比见上面 `sqflite:` 那段注释）⇒ ⇒
+  # ⇒ ⇒ `sqflite_common` 原本只是传递依赖，但它**会飘**（两个上游都允许 <4.0.0）
+  # ⇒ ⇒ ⇒ ⇒ 所以必须**提为显式 dev 依赖**才能钉住（与下面 sqlite3 那一族同款做法）。
+  sqflite_common_ffi: 2.4.0+3
+  sqflite_common: 2.5.8
 
   # ⚠️ 2026-11-09：**SQLite native asset 的提供者**（原本只是
   # sqflite_common_ffi 的传递依赖）⇒ ⇒ 现在**提为显式 dev 依赖并钉住下限**
