@@ -1,6 +1,9 @@
 import { expect, afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
-import '@testing-library/jest-dom';
+// ⚠️ 2026-11-21（vite 8 ＋ vitest 5 刀）：vitest 4 起换成自研 expect ⇒ jest-dom
+// 的 matcher 要挂 **vitest 入口**（裸入口挂的是 jest 的 expect 全局 ⇒
+// 运行时 matchers 全部失踪 ⇒ 全量测试面集体红）。
+import '@testing-library/jest-dom/vitest';
 
 // ⚠️⚠️ **环境自带对象不许进判据** —— 这一段**原来**写成「运行时自带能用就用、
 // 不能用才造一个」⇒ ⇒ 于是**判据读到的 storage 形状由运行时决定**：

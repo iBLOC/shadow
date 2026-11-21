@@ -33,6 +33,18 @@ describe('PWAInstallPrompt', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    // ⚠️ 2026-11-21（vitest 5 刀）：vitest 4 起 `vi.spyOn` 收紧成「属性值必须是
+    // 函数」（vitest 3 只查键存在性——populateGlobal 会把 matchMedia 以 undefined
+    // 值种在 window 上 ⇒ 旧栈 spy 靠那个 undefined 键骗过检查）⇒ jsdom 本体
+    // 从未实现 matchMedia ⇒ spy 前先把它定义成函数（testing-library 标准 polyfill
+    // 形状的精简版：spyOn＋mockImplementation 紧随其后，行为会被整份覆盖）。
+    if (typeof window.matchMedia !== 'function') {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        writable: true,
+        value: vi.fn(),
+      });
+    }
     matchMediaSpy = vi.spyOn(window, 'matchMedia').mockImplementation(
       () =>
         ({
